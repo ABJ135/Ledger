@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cycle Summary Report — Ledger</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #FAFAF8; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1C1917;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #FAFAF8; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 580px; background-color: #FFFFFF; border-radius: 12px; border: 1px solid #E7E5E4; overflow: hidden; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);">
+          <!-- Header -->
+          <tr>
+            <td style="background-color: #0B4F4A; padding: 32px; text-align: left;">
+              <span style="display: inline-block; font-size: 20px; font-weight: 700; color: #FAFAF8; letter-spacing: -0.5px;">LEDGER</span>
+              <h1 style="margin: 16px 0 4px 0; font-size: 24px; font-weight: 700; color: #FFFFFF;">
+                {{monthLabel}} Summary
+              </h1>
+              <p style="margin: 0; font-size: 14px; color: #CCFBF1;">
+                Your billing cycle has officially ended. Here is your final summary report.
+              </p>
+            </td>
+          </tr>
+
+          <!-- KPI Cards -->
+          <tr>
+            <td style="padding: 24px 32px 16px 32px;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td width="31%" style="background-color: #F5F5F4; border-radius: 8px; padding: 14px; text-align: center;">
+                    <div style="font-size: 11px; text-transform: uppercase; color: #78716C; font-weight: 600; margin-bottom: 4px;">Budget</div>
+                    <div style="font-size: 16px; font-weight: 700; color: #1C1917;">{{budgetFormatted}}</div>
+                  </td>
+                  <td width="3.5%"></td>
+                  <td width="31%" style="background-color: #F5F5F4; border-radius: 8px; padding: 14px; text-align: center;">
+                    <div style="font-size: 11px; text-transform: uppercase; color: #78716C; font-weight: 600; margin-bottom: 4px;">Total Spent</div>
+                    <div style="font-size: 16px; font-weight: 700; color: #C1543C;">{{totalSpentFormatted}}</div>
+                  </td>
+                  <td width="3.5%"></td>
+                  <td width="31%" style="background-color: #F5F5F4; border-radius: 8px; padding: 14px; text-align: center;">
+                    <div style="font-size: 11px; text-transform: uppercase; color: #78716C; font-weight: 600; margin-bottom: 4px;">Net Balance</div>
+                    <div style="font-size: 16px; font-weight: 700; color: {{remainingColor}};">{{remainingFormatted}}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Category Breakdown Table -->
+          <tr>
+            <td style="padding: 16px 32px 32px 32px;">
+              <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 700; color: #1C1917;">
+                Category Breakdown
+              </h3>
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="border-collapse: collapse;">
+                <thead>
+                  <tr style="border-bottom: 2px solid #E7E5E4;">
+                    <th align="left" style="padding: 10px 0; font-size: 12px; text-transform: uppercase; color: #78716C; font-weight: 600;">Category</th>
+                    <th align="right" style="padding: 10px 0; font-size: 12px; text-transform: uppercase; color: #78716C; font-weight: 600;">Amount</th>
+                    <th align="right" style="padding: 10px 0; font-size: 12px; text-transform: uppercase; color: #78716C; font-weight: 600;">Share</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {{categoryRowsHtml}}
+                </tbody>
+              </table>
+
+              <!-- Action Link -->
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-top: 32px;">
+                <tr>
+                  <td align="center">
+                    <a href="{{dashboardUrl}}" style="display: inline-block; background-color: #0B4F4A; color: #FFFFFF; font-size: 14px; font-weight: 600; text-decoration: none; padding: 12px 28px; border-radius: 6px;">
+                      Open Ledger Dashboard
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 20px 32px; background-color: #FAFAF8; border-top: 1px solid #E7E5E4; text-align: center;">
+              <p style="margin: 0; font-size: 12px; color: #A8A29E; line-height: 1.5;">
+                This month-end cycle report was automatically compiled upon cycle closure in Ledger.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "@repo/config",
+  "version": "0.1.0",
+  "private": true,
+  "main": "tailwind-preset.js",
+  "files": [
+    "tsconfig.base.json",
+    "tailwind-preset.js"
+  ],
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

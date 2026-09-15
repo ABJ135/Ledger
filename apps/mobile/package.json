@@ -1,0 +1,33 @@
+{
+  "name": "mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "build:apk": "eas build -p android --profile preview"
+  },
+  "dependencies": {
+    "@reduxjs/toolkit": "^2.6.1",
+    "@repo/api-client": "*",
+    "@repo/shared-types": "*",
+    "@repo/validation": "*",
+    "@sentry/react-native": "^8.26.0",
+    "expo": "~52.0.37",
+    "expo-status-bar": "~2.0.1",
+    "lucide-react-native": "^0.475.0",
+    "react": "18.3.1",
+    "react-native": "0.76.7",
+    "react-native-svg": "15.8.0",
+    "react-redux": "^9.2.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@repo/config": "*",
+    "@types/react": "~18.3.12",
+    "typescript": "^5.7.3"
+  }
+}
