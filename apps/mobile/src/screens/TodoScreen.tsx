@@ -18,6 +18,7 @@ import {
   useDeleteAllTodosMutation,
   usePromoteTodoMutation,
   usePromoteAllTodosMutation,
+  useGetCategoriesQuery,
 } from '@repo/api-client';
 import { Todo } from '@repo/shared-types';
 import {
@@ -27,7 +28,8 @@ import {
   Trash2,
   X,
   Sparkles,
-  DollarSign,
+  Tag,
+  ChevronDown,
 } from 'lucide-react-native';
 import { Colors } from '../theme/colors';
 import { formatPaisa, rupeesToPaisa } from '../utils/currency';
@@ -36,6 +38,7 @@ import { ConfirmModal } from '../components/common/ConfirmModal';
 
 export const TodoScreen: FC = () => {
   const { data: todos = [], isLoading, refetch } = useGetTodosQuery();
+  const { data: categories = [] } = useGetCategoriesQuery();
   const [createTodo] = useCreateTodoMutation();
   const [deleteTodo] = useDeleteTodoMutation();
   const [deleteAllTodos] = useDeleteAllTodosMutation();
@@ -45,6 +48,8 @@ export const TodoScreen: FC = () => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newContent, setNewContent] = useState('');
   const [newPriceRupees, setNewPriceRupees] = useState('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [isCategoryOpen, setIsCategoryOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -52,6 +57,8 @@ export const TodoScreen: FC = () => {
   const [todoToDelete, setTodoToDelete] = useState<Todo | null>(null);
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
   const [confirmPromoteAll, setConfirmPromoteAll] = useState(false);
+
+  const selectedCategory = categories.find((c) => c.id === selectedCategoryId) ?? null;
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -70,11 +77,13 @@ export const TodoScreen: FC = () => {
       await createTodo({
         content: newContent.trim(),
         price,
+        categoryId: selectedCategoryId ?? undefined,
       }).unwrap();
 
       // Spec B.8 Add-Loop: resets inputs in place without closing so user can add another
       setNewContent('');
       setNewPriceRupees('');
+      setSelectedCategoryId(null);
       await refetch();
     } catch (err) {
       console.error('Failed to create todo:', err);
@@ -197,47 +206,58 @@ export const TodoScreen: FC = () => {
           </View>
         ) : (
           <View style={styles.ledgerCard}>
-            {todos.map((todo) => (
-              <View key={todo.id} style={styles.todoRow}>
-                {/* Left: Circle icon + content */}
-                <View style={styles.todoLeft}>
-                  <IconCircle size={28} color={Colors.light.primary}>
-                    <CheckSquare size={14} color={Colors.light.primary} />
-                  </IconCircle>
-                  <View style={styles.todoInfo}>
-                    <Text style={styles.todoContent} numberOfLines={1}>
-                      {todo.content}
-                    </Text>
-                    {todo.price !== null ? (
-                      <Text style={styles.todoPrice}>{formatPaisa(todo.price)}</Text>
-                    ) : (
-                      <Text style={styles.todoUnpriced}>Unpriced estimate</Text>
-                    )}
+            {todos.map((todo) => {
+              const cat = categories.find((c) => c.id === todo.categoryId);
+              return (
+                <View key={todo.id} style={styles.todoRow}>
+                  {/* Left: Circle icon + content */}
+                  <View style={styles.todoLeft}>
+                    <IconCircle size={28} color={Colors.light.primary}>
+                      <CheckSquare size={14} color={Colors.light.primary} />
+                    </IconCircle>
+                    <View style={styles.todoInfo}>
+                      <Text style={styles.todoContent} numberOfLines={1}>
+                        {todo.content}
+                      </Text>
+                      <View style={styles.todoMeta}>
+                        {todo.price !== null ? (
+                          <Text style={styles.todoPrice}>{formatPaisa(todo.price)}</Text>
+                        ) : (
+                          <Text style={styles.todoUnpriced}>Unpriced estimate</Text>
+                        )}
+                        {cat && (
+                          <View style={styles.categoryBadge}>
+                            <Tag size={9} color={Colors.light.primary} />
+                            <Text style={styles.categoryBadgeText}>{cat.name}</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Right: Actions */}
+                  <View style={styles.todoActions}>
+                    <TouchableOpacity
+                      style={styles.actionIconBtn}
+                      onPress={() => handlePromoteSingle(todo)}
+                      activeOpacity={0.6}
+                      accessibilityLabel={`Promote ${todo.content}`}
+                    >
+                      <ArrowUpRight size={17} color={Colors.light.incomePositive} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.actionIconBtn}
+                      onPress={() => setTodoToDelete(todo)}
+                      activeOpacity={0.6}
+                      accessibilityLabel={`Delete ${todo.content}`}
+                    >
+                      <Trash2 size={16} color={Colors.light.expenseAlert} />
+                    </TouchableOpacity>
                   </View>
                 </View>
-
-                {/* Right: Actions */}
-                <View style={styles.todoActions}>
-                  <TouchableOpacity
-                    style={styles.actionIconBtn}
-                    onPress={() => handlePromoteSingle(todo)}
-                    activeOpacity={0.6}
-                    accessibilityLabel={`Promote ${todo.content}`}
-                  >
-                    <ArrowUpRight size={17} color={Colors.light.incomePositive} />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.actionIconBtn}
-                    onPress={() => setTodoToDelete(todo)}
-                    activeOpacity={0.6}
-                    accessibilityLabel={`Delete ${todo.content}`}
-                  >
-                    <Trash2 size={16} color={Colors.light.expenseAlert} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
+              );
+            })}
           </View>
         )}
 
@@ -304,6 +324,30 @@ export const TodoScreen: FC = () => {
                     />
                   </View>
 
+                  {/* Category picker */}
+                  {categories.length > 0 && (
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Category (Optional)</Text>
+                      <TouchableOpacity
+                        style={styles.categoryPicker}
+                        onPress={() => setIsCategoryOpen(true)}
+                        activeOpacity={0.7}
+                      >
+                        {selectedCategory ? (
+                          <View style={styles.categoryPickerSelected}>
+                            <Tag size={13} color={Colors.light.primary} />
+                            <Text style={styles.categoryPickerSelectedText}>
+                              {selectedCategory.name}
+                            </Text>
+                          </View>
+                        ) : (
+                          <Text style={styles.categoryPickerPlaceholder}>Select a category…</Text>
+                        )}
+                        <ChevronDown size={15} color={Colors.light.textSecondary} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
                   <View style={styles.loopNote}>
                     <Text style={styles.loopNoteText}>
                       💡 Add-Loop: Tapping Add adds the item immediately and keeps the input ready for the next item.
@@ -332,6 +376,61 @@ export const TodoScreen: FC = () => {
                     </TouchableOpacity>
                   </View>
                 </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Category Picker Sheet */}
+      <Modal
+        transparent
+        visible={isCategoryOpen}
+        animationType="slide"
+        onRequestClose={() => setIsCategoryOpen(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setIsCategoryOpen(false)}>
+          <View style={styles.sheetBackdrop}>
+            <TouchableWithoutFeedback>
+              <View style={styles.sheetCard}>
+                <View style={styles.sheetHeader}>
+                  <Text style={styles.sheetTitle}>Select Category</Text>
+                  <TouchableOpacity onPress={() => setIsCategoryOpen(false)}>
+                    <X size={20} color={Colors.light.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView style={styles.sheetScroll}>
+                  <TouchableOpacity
+                    style={[
+                      styles.sheetOption,
+                      !selectedCategoryId && styles.sheetOptionSelected,
+                    ]}
+                    onPress={() => {
+                      setSelectedCategoryId(null);
+                      setIsCategoryOpen(false);
+                    }}
+                  >
+                    <Text style={styles.sheetOptionText}>No category</Text>
+                  </TouchableOpacity>
+                  {categories.map((cat) => (
+                    <TouchableOpacity
+                      key={cat.id}
+                      style={[
+                        styles.sheetOption,
+                        selectedCategoryId === cat.id && styles.sheetOptionSelected,
+                      ]}
+                      onPress={() => {
+                        setSelectedCategoryId(cat.id);
+                        setIsCategoryOpen(false);
+                      }}
+                    >
+                      <View style={styles.sheetOptionRow}>
+                        <Tag size={14} color={Colors.light.primary} />
+                        <Text style={styles.sheetOptionText}>{cat.name}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
               </View>
             </TouchableWithoutFeedback>
           </View>
@@ -447,13 +546,14 @@ const styles = StyleSheet.create({
     borderColor: Colors.light.border,
   },
   todoRow: {
-    height: 52,
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderBottomWidth: 1,
     borderBottomColor: Colors.light.border,
     paddingHorizontal: 4,
+    paddingVertical: 8,
   },
   todoLeft: {
     flexDirection: 'row',
@@ -469,7 +569,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: Colors.light.textPrimary,
-    marginBottom: 2,
+    marginBottom: 3,
+  },
+  todoMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
   },
   todoPrice: {
     fontSize: 12,
@@ -480,6 +586,20 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.light.textSecondary,
     fontStyle: 'italic',
+  },
+  categoryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: Colors.light.primarySoft,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 20,
+  },
+  categoryBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: Colors.light.primary,
   },
   todoActions: {
     flexDirection: 'row',
@@ -540,6 +660,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  // Add Modal
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(20, 19, 17, 0.45)',
@@ -594,6 +715,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.light.textPrimary,
   },
+  categoryPicker: {
+    height: 44,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    backgroundColor: Colors.light.surfaceRaised,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  categoryPickerSelected: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  categoryPickerSelectedText: {
+    fontSize: 14,
+    color: Colors.light.textPrimary,
+    fontWeight: '500',
+  },
+  categoryPickerPlaceholder: {
+    fontSize: 14,
+    color: Colors.light.textSecondary,
+  },
   loopNote: {
     backgroundColor: Colors.light.surfaceRaised,
     borderRadius: 8,
@@ -635,5 +781,53 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  // Category bottom sheet
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(20, 19, 17, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  sheetCard: {
+    backgroundColor: Colors.light.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '60%',
+    paddingBottom: 24,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.light.textPrimary,
+  },
+  sheetScroll: {
+    paddingTop: 4,
+  },
+  sheetOption: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  sheetOptionSelected: {
+    backgroundColor: Colors.light.primarySoft,
+  },
+  sheetOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  sheetOptionText: {
+    fontSize: 15,
+    color: Colors.light.textPrimary,
   },
 });

@@ -60,13 +60,19 @@ export class MonthsService {
     });
 
     if (months.length === 0 && (!context || context === 'personal')) {
-      // Auto-create initial personal month cycle: Rs 100,000 (10,000,000 paisa)
+      const now = new Date();
+      const monthName = new Intl.DateTimeFormat('en-US', {
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'Asia/Karachi',
+      }).format(now);
+
       const initialMonth = await this.prisma.month.create({
         data: {
           userId,
-          label: 'Cycle 1',
-          budget: 10000000, // 100,000 PKR in paisa
-          startAt: new Date(),
+          label: monthName, // e.g. "September 2026"
+          budget: 10000000, // 100,000 PKR default, editable directly in UI
+          startAt: now,
           isCurrent: true,
         },
       });
@@ -272,15 +278,23 @@ export class MonthsService {
 
     const now = new Date();
 
-    // Determine next label (e.g. "Cycle 2" from "Cycle 1")
-    let nextLabel = 'Next Cycle';
-    const cycleMatch = currentMonth.label.match(/(\d+)/);
-    if (cycleMatch && cycleMatch[1]) {
-      const num = parseInt(cycleMatch[1], 10);
-      nextLabel = currentMonth.label.replace(cycleMatch[1], String(num + 1));
-    } else {
-      const totalCount = await this.prisma.month.count({ where: { userId } });
-      nextLabel = `Cycle ${totalCount + 1}`;
+    // Determine next label (use user provided label, or smart human calendar label)
+    let nextLabel = dto.label?.trim();
+    if (!nextLabel) {
+      const monthName = new Intl.DateTimeFormat('en-US', {
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'Asia/Karachi',
+      }).format(now);
+
+      const existingSameMonth = await this.prisma.month.count({
+        where: {
+          userId,
+          label: { startsWith: monthName },
+        },
+      });
+
+      nextLabel = existingSameMonth === 0 ? monthName : `${monthName} (Part ${existingSameMonth + 1})`;
     }
 
     const [closedMonth, nextMonth] = await this.prisma.$transaction([

@@ -6,6 +6,8 @@ import {
   useCreateExpenseMutation,
   useUpdateExpenseMutation,
   useDeleteExpenseMutation,
+  useUpdateMonthMutation,
+  useCreateMonthMutation,
   downloadMonthCsv,
 } from '@repo/api-client';
 import { Expense } from '@repo/shared-types';
@@ -13,8 +15,10 @@ import { StatCallouts } from '../components/expense/StatCallouts';
 import { ExpenseEntryForm } from '../components/expense/ExpenseEntryForm';
 import { LedgerRow } from '../components/expense/LedgerRow';
 import { EditExpenseModal } from '../components/expense/EditExpenseModal';
+import { EditCycleModal } from '../components/expense/EditCycleModal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import { ReceiptText, Loader2, Download } from 'lucide-react';
+import { ReceiptText, Loader2, Download, Pencil, Calendar } from 'lucide-react';
+import { formatPktDate } from '../utils/date';
 
 interface LandingPageProps {
   context?: 'personal' | 'shared';
@@ -45,10 +49,35 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [createExpense] = useCreateExpenseMutation();
   const [updateExpense] = useUpdateExpenseMutation();
   const [deleteExpense] = useDeleteExpenseMutation();
+  const [updateMonth] = useUpdateMonthMutation();
+  const [createMonth] = useCreateMonthMutation();
 
   // Dialog and Modal state
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [deletingExpense, setDeletingExpense] = useState<Expense | null>(null);
+  const [isEditCycleOpen, setIsEditCycleOpen] = useState(false);
+
+  const handleSaveCycle = async (data: {
+    id?: string;
+    label: string;
+    budget: number;
+  }) => {
+    if (data.id) {
+      await updateMonth({
+        id: data.id,
+        data: {
+          label: data.label,
+          budget: data.budget,
+        },
+      }).unwrap();
+    } else {
+      await createMonth({
+        label: data.label,
+        budget: data.budget,
+        sharedExpenseId: context === 'shared' ? sharedExpenseId : undefined,
+      }).unwrap();
+    }
+  };
 
   const handleAddExpense = async (data: {
     monthId: string;
@@ -103,8 +132,49 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Active Cycle Header Bar */}
+      {currentMonth && (
+        <div className="bg-surface rounded-card p-4 border border-border shadow-xs flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+              <Calendar className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-text-primary tracking-tight">
+                  {currentMonth.label}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setIsEditCycleOpen(true)}
+                  className="p-1 rounded-md text-text-secondary hover:text-primary hover:bg-surface-raised transition-colors"
+                  title="Rename cycle or change budget"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <span className="text-xs text-text-secondary">
+                Started {formatPktDate(currentMonth.startAt)} • Active Cycle
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsEditCycleOpen(true)}
+            className="h-8 px-3 rounded-btn border border-border hover:bg-surface-raised text-xs font-semibold text-text-secondary hover:text-text-primary transition-colors flex items-center gap-1.5"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+            <span>Edit Cycle & Budget</span>
+          </button>
+        </div>
+      )}
+
       {/* Stat Callouts (Hero numbers) */}
-      <StatCallouts totals={monthDetail?.totals} />
+      <StatCallouts
+        totals={monthDetail?.totals}
+        onEditBudget={() => setIsEditCycleOpen(true)}
+      />
 
       {/* Expense Entry Form */}
       {currentMonth && (
@@ -182,6 +252,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         confirmLabel="Delete"
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeletingExpense(null)}
+      />
+
+      {/* Edit Cycle & Budget Modal */}
+      <EditCycleModal
+        isOpen={isEditCycleOpen}
+        cycle={
+          currentMonth
+            ? {
+                id: currentMonth.id,
+                label: monthDetail?.label || currentMonth.label,
+                budget: monthDetail?.budget ?? currentMonth.budget,
+              }
+            : null
+        }
+        onClose={() => setIsEditCycleOpen(false)}
+        onSave={handleSaveCycle}
       />
     </div>
   );

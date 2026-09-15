@@ -44,6 +44,7 @@ export const updateMonthSchema = z.object({
 
 export const endCurrentMonthSchema = z.object({
   budget: z.number().int('Budget must be an integer').nonnegative('Budget must be non-negative'),
+  label: z.string().min(1).max(100).optional(),
 });
 
 // ==========================================
@@ -81,11 +82,13 @@ export const createCategorySchema = z.object({
 export const createTodoSchema = z.object({
   content: z.string().min(1, 'Todo content is required').max(255),
   price: z.number().int('Price must be an integer in paisa').positive('Price must be greater than 0').nullable().optional(),
+  categoryId: z.string().uuid('Invalid category ID').nullable().optional(),
 });
 
 export const updateTodoSchema = z.object({
   content: z.string().min(1).max(255).optional(),
   price: z.number().int('Price must be an integer in paisa').positive('Price must be greater than 0').nullable().optional(),
+  categoryId: z.string().uuid('Invalid category ID').nullable().optional(),
 });
 
 // ==========================================

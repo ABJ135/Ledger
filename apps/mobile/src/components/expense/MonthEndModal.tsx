@@ -19,7 +19,7 @@ interface MonthEndModalProps {
   isOpen: boolean;
   currentMonth: Month | null;
   onClose: () => void;
-  onEndMonth: (nextBudgetInPaisa: number) => Promise<MonthSummary>;
+  onEndMonth: (nextBudgetInPaisa: number, nextLabel?: string) => Promise<MonthSummary>;
 }
 
 export const MonthEndModal: FC<MonthEndModalProps> = ({
@@ -31,6 +31,7 @@ export const MonthEndModal: FC<MonthEndModalProps> = ({
   const [nextRupees, setNextRupees] = useState(() =>
     currentMonth ? paisaToRupees(currentMonth.budget).toString() : '100000',
   );
+  const [nextLabel, setNextLabel] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [summary, setSummary] = useState<MonthSummary | null>(null);
 
@@ -43,7 +44,8 @@ export const MonthEndModal: FC<MonthEndModalProps> = ({
     try {
       setIsSubmitting(true);
       const nextBudgetInPaisa = rupeesToPaisa(parsed);
-      const res = await onEndMonth(nextBudgetInPaisa);
+      const label = nextLabel.trim() || undefined;
+      const res = await onEndMonth(nextBudgetInPaisa, label);
       setSummary(res);
     } catch (err) {
       console.error('Failed to end cycle:', err);
@@ -54,6 +56,7 @@ export const MonthEndModal: FC<MonthEndModalProps> = ({
 
   const handleClose = () => {
     setSummary(null);
+    setNextLabel('');
     onClose();
   };
 
@@ -108,6 +111,20 @@ export const MonthEndModal: FC<MonthEndModalProps> = ({
                     <Text style={styles.statNote}>
                       Closing this cycle sets its end date to now and rolls your ledger forward
                       seamlessly with 0 gap (Spec A.6).
+                    </Text>
+                  </View>
+
+                  <View style={styles.inputSection}>
+                    <Text style={styles.inputLabel}>Next Cycle Label (Optional)</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={nextLabel}
+                      onChangeText={setNextLabel}
+                      placeholder="e.g. October 2026, Week 3…"
+                      placeholderTextColor={Colors.light.textSecondary}
+                    />
+                    <Text style={styles.inputHint}>
+                      Leave blank for a smart auto-generated name.
                     </Text>
                   </View>
 
@@ -272,6 +289,11 @@ const styles = StyleSheet.create({
   },
   inputSection: {
     gap: 6,
+  },
+  inputHint: {
+    fontSize: 11,
+    color: Colors.light.textSecondary,
+    fontStyle: 'italic',
   },
   inputLabel: {
     fontSize: 12,

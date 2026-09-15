@@ -66,9 +66,10 @@ export function App() {
     setIsDark(!isDark);
   };
 
-  const handleEndMonth = async (nextBudgetInPaisa: number): Promise<MonthSummary> => {
+  const handleEndMonth = async (nextBudgetInPaisa: number, nextLabel?: string): Promise<MonthSummary> => {
     const summary = await endCurrentMonthMutation({
       budget: nextBudgetInPaisa,
+      label: nextLabel,
     }).unwrap();
     return summary;
   };

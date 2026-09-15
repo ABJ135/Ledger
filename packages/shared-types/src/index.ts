@@ -55,10 +55,12 @@ export interface Expense {
 export interface Todo {
   id: string;
   userId: string;
+  categoryId: string | null;
   content: string;
   price: number | null; // paisa, nullable until filled
   createdAt: string;
   updatedAt: string;
+  category?: Category | null;
 }
 
 export interface SharedExpense {
@@ -171,6 +173,7 @@ export interface UpdateMonthDto {
 
 export interface EndCurrentMonthDto {
   budget: number; // budget in paisa for the next rollover month
+  label?: string; // optional custom label for the next cycle
 }
 
 // ==========================================
@@ -208,11 +211,13 @@ export interface CreateCategoryDto {
 export interface CreateTodoDto {
   content: string;
   price?: number | null; // paisa
+  categoryId?: string | null;
 }
 
 export interface UpdateTodoDto {
   content?: string;
   price?: number | null; // paisa
+  categoryId?: string | null;
 }
 
 // ==========================================

@@ -57,7 +57,7 @@ export class SharedExpensesService {
         },
         months: {
           create: {
-            label: 'Cycle 1',
+            label: `${dto.name.trim()} (${new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'Asia/Karachi' }).format(new Date())})`,
             budget: 10000000, // Rs 100,000 default budget (10,000,000 paisa)
             startAt: new Date(),
             isCurrent: true,

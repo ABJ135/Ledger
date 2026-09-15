@@ -24,21 +24,32 @@ export class TodosService {
   async findAll(userId: string): Promise<Todo[]> {
     const list = await this.prisma.todo.findMany({
       where: { userId },
+      include: { category: true },
       orderBy: { createdAt: 'desc' },
     });
 
     return list.map((t) => ({
       id: t.id,
       userId: t.userId,
+      categoryId: t.categoryId,
       content: t.content,
       price: t.price,
       createdAt: t.createdAt.toISOString(),
       updatedAt: t.updatedAt.toISOString(),
+      category: t.category
+        ? {
+            id: t.category.id,
+            name: t.category.name,
+            isDefault: t.category.isDefault,
+            ownerId: t.category.ownerId,
+            createdAt: t.category.createdAt.toISOString(),
+          }
+        : null,
     }));
   }
 
   /**
-   * Create a new wishlist todo.
+   * Create a new wishlist todo with optional category.
    */
   async create(userId: string, dto: CreateTodoDto): Promise<Todo> {
     if (!dto.content || !dto.content.trim()) {
@@ -48,23 +59,35 @@ export class TodosService {
     const created = await this.prisma.todo.create({
       data: {
         userId,
+        categoryId: dto.categoryId || null,
         content: dto.content.trim(),
         price: dto.price !== undefined ? dto.price : null,
       },
+      include: { category: true },
     });
 
     return {
       id: created.id,
       userId: created.userId,
+      categoryId: created.categoryId,
       content: created.content,
       price: created.price,
       createdAt: created.createdAt.toISOString(),
       updatedAt: created.updatedAt.toISOString(),
+      category: created.category
+        ? {
+            id: created.category.id,
+            name: created.category.name,
+            isDefault: created.category.isDefault,
+            ownerId: created.category.ownerId,
+            createdAt: created.category.createdAt.toISOString(),
+          }
+        : null,
     };
   }
 
   /**
-   * Update a todo (inline cell edit or price entry).
+   * Update a todo (inline cell edit, category, or price entry).
    */
   async update(id: string, userId: string, dto: UpdateTodoDto): Promise<Todo> {
     const existing = await this.prisma.todo.findFirst({
@@ -78,18 +101,30 @@ export class TodosService {
     const updated = await this.prisma.todo.update({
       where: { id },
       data: {
+        categoryId: dto.categoryId !== undefined ? dto.categoryId : undefined,
         content: dto.content !== undefined ? dto.content.trim() : undefined,
         price: dto.price !== undefined ? dto.price : undefined,
       },
+      include: { category: true },
     });
 
     return {
       id: updated.id,
       userId: updated.userId,
+      categoryId: updated.categoryId,
       content: updated.content,
       price: updated.price,
       createdAt: updated.createdAt.toISOString(),
       updatedAt: updated.updatedAt.toISOString(),
+      category: updated.category
+        ? {
+            id: updated.category.id,
+            name: updated.category.name,
+            isDefault: updated.category.isDefault,
+            ownerId: updated.category.ownerId,
+            createdAt: updated.category.createdAt.toISOString(),
+          }
+        : null,
     };
   }
 
@@ -120,7 +155,7 @@ export class TodosService {
   }
 
   /**
-   * Promote single todo to an expense in the user's active cycle.
+   * Promote single todo to an expense in the user's active cycle, preserving category.
    */
   async promote(id: string, userId: string): Promise<Expense> {
     const todo = await this.prisma.todo.findFirst({
@@ -144,22 +179,29 @@ export class TodosService {
     }
 
     if (!currentMonth) {
-      // Auto-create initial cycle if none exists
+      const now = new Date();
+      const monthName = new Intl.DateTimeFormat('en-US', {
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'Asia/Karachi',
+      }).format(now);
+
       currentMonth = await this.prisma.month.create({
         data: {
           userId,
-          label: 'Cycle 1',
+          label: monthName,
           budget: 10000000,
-          startAt: new Date(),
+          startAt: now,
           isCurrent: true,
         },
       });
     }
 
-    // Create expense from todo (defaults to Rs 0 if no price given)
+    // Create expense from todo (transfers categoryId and price)
     const expense = await this.prisma.expense.create({
       data: {
         monthId: currentMonth.id,
+        categoryId: todo.categoryId || null,
         content: todo.content,
         amount: todo.price || 0,
         occurredAt: new Date(),
@@ -201,7 +243,7 @@ export class TodosService {
   }
 
   /**
-   * Promote all todos to expenses in the user's active cycle.
+   * Promote all todos to expenses in the user's active cycle, preserving category.
    */
   async promoteAll(userId: string): Promise<{ count: number }> {
     const todos = await this.prisma.todo.findMany({
@@ -224,12 +266,19 @@ export class TodosService {
     }
 
     if (!currentMonth) {
+      const now = new Date();
+      const monthName = new Intl.DateTimeFormat('en-US', {
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'Asia/Karachi',
+      }).format(now);
+
       currentMonth = await this.prisma.month.create({
         data: {
           userId,
-          label: 'Cycle 1',
+          label: monthName,
           budget: 10000000,
-          startAt: new Date(),
+          startAt: now,
           isCurrent: true,
         },
       });
@@ -241,6 +290,7 @@ export class TodosService {
         await tx.expense.create({
           data: {
             monthId: currentMonth.id,
+            categoryId: t.categoryId || null,
             content: t.content,
             amount: t.price || 0,
             occurredAt: now,

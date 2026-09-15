@@ -1,6 +1,7 @@
 import { useState, FC, FormEvent, useRef, useEffect } from 'react';
 import {
   useGetTodosQuery,
+  useGetCategoriesQuery,
   useCreateTodoMutation,
   useUpdateTodoMutation,
   useDeleteTodoMutation,
@@ -17,12 +18,14 @@ import {
   X,
   Sparkles,
   Loader2,
+  Tag,
 } from 'lucide-react';
 import { formatPaisa, paisaToRupees, rupeesToPaisa } from '../utils/currency';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 export const TodoPage: FC = () => {
   const { data: todos = [], isLoading, refetch } = useGetTodosQuery();
+  const { data: categories = [] } = useGetCategoriesQuery();
   const [createTodo] = useCreateTodoMutation();
   const [updateTodo] = useUpdateTodoMutation();
   const [deleteTodo] = useDeleteTodoMutation();
@@ -34,6 +37,7 @@ export const TodoPage: FC = () => {
   const [isAddLoopOpen, setIsAddLoopOpen] = useState(false);
   const [newContent, setNewContent] = useState('');
   const [newPriceRupees, setNewPriceRupees] = useState('');
+  const [newCategoryId, setNewCategoryId] = useState('');
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   // Confirm dialog state
@@ -62,11 +66,13 @@ export const TodoPage: FC = () => {
       await createTodo({
         content: newContent.trim(),
         price: !isNaN(price as number) && price !== null ? price : null,
+        categoryId: newCategoryId || null,
       }).unwrap();
 
       // Spec B.8 Add-Loop: submits and resets input in place without closing/flickering
       setNewContent('');
       setNewPriceRupees('');
+      setNewCategoryId('');
       inputRef.current?.focus();
     } catch (err) {
       console.error('Failed to create todo:', err);
@@ -226,14 +232,22 @@ export const TodoPage: FC = () => {
                 key={todo.id}
                 className="h-[52px] px-5 flex items-center justify-between hover:bg-surface-raised transition-colors group"
               >
-                {/* Left: Checkmark Circle + Content */}
+                {/* Left: Checkmark Circle + Content + Category Badge */}
                 <div className="flex items-center gap-3 flex-1 mr-4 min-w-0">
-                  <div className="w-6 h-6 rounded-full border border-border flex items-center justify-center text-text-secondary group-hover:border-primary transition-colors">
-                    <span className="text-[10px] font-bold">•</span>
+                  <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">
+                    {todo.category?.name ? todo.category.name.charAt(0).toUpperCase() : '•'}
                   </div>
-                  <span className="text-sm font-medium text-text-primary truncate">
-                    {todo.content}
-                  </span>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-medium text-text-primary truncate">
+                      {todo.content}
+                    </span>
+                    {todo.category && (
+                      <span className="text-[11px] text-text-secondary flex items-center gap-1">
+                        <Tag className="w-3 h-3 text-primary" />
+                        <span>{todo.category.name}</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Right: Price + Actions */}
@@ -352,6 +366,24 @@ export const TodoPage: FC = () => {
                   onChange={(e) => setNewPriceRupees(e.target.value)}
                   className="h-10 px-3 rounded-input border border-border bg-surface text-sm text-text-primary focus:border-2 focus:border-primary focus:outline-none"
                 />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-text-secondary">
+                  Category (Optional)
+                </label>
+                <select
+                  value={newCategoryId}
+                  onChange={(e) => setNewCategoryId(e.target.value)}
+                  className="h-10 px-3 rounded-input border border-border bg-surface text-sm text-text-primary focus:border-2 focus:border-primary focus:outline-none"
+                >
+                  <option value="">No category (General)</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="p-2.5 bg-surface-raised rounded-md text-[11px] text-text-secondary">

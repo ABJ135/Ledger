@@ -13,7 +13,7 @@ interface MonthEndModalProps {
   isOpen: boolean;
   currentMonth: Month | null;
   onClose: () => void;
-  onEndMonth: (nextBudgetInPaisa: number) => Promise<MonthSummary>;
+  onEndMonth: (nextBudgetInPaisa: number, nextLabel?: string) => Promise<MonthSummary>;
 }
 
 export const MonthEndModal: FC<MonthEndModalProps> = ({
@@ -25,6 +25,15 @@ export const MonthEndModal: FC<MonthEndModalProps> = ({
   const [nextRupees, setNextRupees] = useState(() =>
     currentMonth ? paisaToRupees(currentMonth.budget).toString() : '100000',
   );
+  const [nextLabel, setNextLabel] = useState(() => {
+    // Generate next smart month or cycle name
+    const now = new Date();
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'Asia/Karachi',
+    }).format(now);
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [summary, setSummary] = useState<MonthSummary | null>(null);
 
@@ -37,7 +46,7 @@ export const MonthEndModal: FC<MonthEndModalProps> = ({
 
     try {
       setIsSubmitting(true);
-      const result = await onEndMonth(rupeesToPaisa(parsed));
+      const result = await onEndMonth(rupeesToPaisa(parsed), nextLabel.trim() || undefined);
       setSummary(result);
     } finally {
       setIsSubmitting(false);
@@ -103,6 +112,24 @@ export const MonthEndModal: FC<MonthEndModalProps> = ({
                   {formatPaisa(currentMonth.budget)}
                 </span>
               </div>
+            </div>
+
+            {/* Prompt for next cycle label/name */}
+            <div>
+              <label className="text-[13px] font-semibold text-text-primary mb-1.5 block">
+                Next Cycle Label / Name
+              </label>
+              <input
+                type="text"
+                value={nextLabel}
+                onChange={(e) => setNextLabel(e.target.value)}
+                placeholder="e.g. October 2026, Next Paycheck, Trip to Dubai"
+                className="w-full h-11 px-3.5 rounded-btn border border-border bg-surface text-text-primary text-sm font-medium focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
+                required
+              />
+              <span className="text-xs text-text-secondary mt-1 block">
+                Give your next cycle a recognizable name (e.g. month name, date range, or custom).
+              </span>
             </div>
 
             {/* Prompt for next month budget */}

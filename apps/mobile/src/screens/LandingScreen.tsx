@@ -6,6 +6,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Modal,
+  TextInput,
+  TouchableWithoutFeedback,
   RefreshControl,
 } from 'react-native';
 import { Expense, SharedExpense } from '@repo/shared-types';
@@ -16,11 +19,12 @@ import {
   useCreateExpenseMutation,
   useDeleteExpenseMutation,
   useEndCurrentMonthMutation,
+  useUpdateMonthMutation,
   useGetMySharedExpensesQuery,
 } from '@repo/api-client';
-import { CalendarCheck, ShieldCheck, Users } from 'lucide-react-native';
+import { CalendarCheck, ShieldCheck, Users, Pencil, DollarSign, X } from 'lucide-react-native';
 import { Colors } from '../theme/colors';
-import { formatPaisa } from '../utils/currency';
+import { formatPaisa, paisaToRupees, rupeesToPaisa } from '../utils/currency';
 import { StatCallout } from '../components/common/StatCallout';
 import { LedgerRow } from '../components/expense/LedgerRow';
 import { QuickExpenseForm } from '../components/expense/QuickExpenseForm';
@@ -64,8 +68,13 @@ export const LandingScreen: FC<LandingScreenProps> = ({ onOpenCycles }) => {
   const [createExpense] = useCreateExpenseMutation();
   const [deleteExpense] = useDeleteExpenseMutation();
   const [endCurrentMonth] = useEndCurrentMonthMutation();
+  const [updateMonth] = useUpdateMonthMutation();
 
   const [isMonthEndOpen, setIsMonthEndOpen] = useState(false);
+  const [isEditCycleOpen, setIsEditCycleOpen] = useState(false);
+  const [editLabel, setEditLabel] = useState('');
+  const [editBudgetPkr, setEditBudgetPkr] = useState('');
+  const [editSubmitting, setEditSubmitting] = useState(false);
   const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -115,10 +124,39 @@ export const LandingScreen: FC<LandingScreenProps> = ({ onOpenCycles }) => {
     }
   };
 
-  const handleEndMonth = async (nextBudgetInPaisa: number) => {
-    const res = await endCurrentMonth({ budget: nextBudgetInPaisa }).unwrap();
+  const handleEndMonth = async (nextBudgetInPaisa: number, nextLabel?: string) => {
+    const res = await endCurrentMonth({ budget: nextBudgetInPaisa, label: nextLabel }).unwrap();
     await refetchMonths();
     return res;
+  };
+
+  const handleOpenEditCycle = () => {
+    if (!activeMonth) return;
+    setEditLabel(activeMonth.label || '');
+    setEditBudgetPkr(String(paisaToRupees(activeMonth.budget)));
+    setIsEditCycleOpen(true);
+  };
+
+  const handleSaveEditCycle = async () => {
+    if (!activeMonth) return;
+    const pkrNum = parseFloat(editBudgetPkr);
+    if (isNaN(pkrNum) || pkrNum < 0) return;
+    try {
+      setEditSubmitting(true);
+      await updateMonth({
+        id: activeMonth.id,
+        data: {
+          label: editLabel.trim() || activeMonth.label,
+          budget: rupeesToPaisa(pkrNum),
+        },
+      }).unwrap();
+      await refetchMonths();
+      setIsEditCycleOpen(false);
+    } catch (err) {
+      console.error('Failed to update cycle:', err);
+    } finally {
+      setEditSubmitting(false);
+    }
   };
 
   if (monthsLoading || (activeMonth && detailLoading && !monthDetail)) {
@@ -147,6 +185,17 @@ export const LandingScreen: FC<LandingScreenProps> = ({ onOpenCycles }) => {
               {activeMonth?.label || (isShared ? 'Shared' : 'Active Cycle')}
             </Text>
           </TouchableOpacity>
+
+          {!isShared && activeMonth && (
+            <TouchableOpacity
+              onPress={handleOpenEditCycle}
+              style={styles.editCycleBtn}
+              activeOpacity={0.7}
+              accessibilityLabel="Edit cycle and budget"
+            >
+              <Pencil size={11} color={Colors.light.primary} />
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={[styles.personalBadge, isShared && styles.sharedBadge]}
@@ -190,8 +239,9 @@ export const LandingScreen: FC<LandingScreenProps> = ({ onOpenCycles }) => {
           <StatCallout
             label="Total Budget"
             value={formatPaisa(budget)}
-            subtext="Target allowance"
+            subtext={!isShared && activeMonth ? "Target allowance (tap to edit)" : "Target allowance"}
             variant="primary"
+            onPress={!isShared && activeMonth ? handleOpenEditCycle : undefined}
           />
           <StatCallout
             label="Spent So Far"
@@ -243,6 +293,99 @@ export const LandingScreen: FC<LandingScreenProps> = ({ onOpenCycles }) => {
           </View>
         </View>
       </ScrollView>
+
+      {/* Edit Cycle & Budget Modal */}
+      <Modal
+        transparent
+        visible={isEditCycleOpen}
+        animationType="fade"
+        onRequestClose={() => setIsEditCycleOpen(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setIsEditCycleOpen(false)}>
+          <View style={styles.editModalBackdrop}>
+            <TouchableWithoutFeedback>
+              <View style={styles.editModalCard}>
+                {/* Header */}
+                <View style={styles.editModalHeader}>
+                  <View style={styles.editModalTitleRow}>
+                    <View style={styles.editModalIcon}>
+                      <Pencil size={16} color={Colors.light.primary} />
+                    </View>
+                    <View>
+                      <Text style={styles.editModalTitle}>Edit Cycle & Budget</Text>
+                      <Text style={styles.editModalSubtitle}>
+                        Rename your cycle or adjust the budget.
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity onPress={() => setIsEditCycleOpen(false)}>
+                    <X size={20} color={Colors.light.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Cycle Name */}
+                <View style={styles.editInputGroup}>
+                  <Text style={styles.editInputLabel}>Cycle Label / Name</Text>
+                  <TextInput
+                    style={styles.editInput}
+                    value={editLabel}
+                    onChangeText={setEditLabel}
+                    placeholder="e.g. October 2026, Week 3"
+                    placeholderTextColor={Colors.light.textSecondary}
+                  />
+                </View>
+
+                {/* Budget */}
+                <View style={styles.editInputGroup}>
+                  <Text style={styles.editInputLabel}>Budget Allowance (PKR)</Text>
+                  <TextInput
+                    style={styles.editInput}
+                    value={editBudgetPkr}
+                    onChangeText={setEditBudgetPkr}
+                    keyboardType="numeric"
+                    placeholder="e.g. 100000"
+                    placeholderTextColor={Colors.light.textSecondary}
+                  />
+                </View>
+
+                {/* Presets */}
+                <View style={styles.presetsRow}>
+                  {[5000, 25000, 50000, 100000].map((amt) => (
+                    <TouchableOpacity
+                      key={amt}
+                      style={styles.presetBtn}
+                      onPress={() => setEditBudgetPkr(String(amt))}
+                    >
+                      <Text style={styles.presetBtnText}>Rs {(amt / 1000).toFixed(0)}k</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Actions */}
+                <View style={styles.editActions}>
+                  <TouchableOpacity
+                    style={[styles.editBtn, styles.editCancelBtn]}
+                    onPress={() => setIsEditCycleOpen(false)}
+                    disabled={editSubmitting}
+                  >
+                    <Text style={styles.editCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.editBtn, styles.editSaveBtn, editSubmitting && styles.disabledBtn]}
+                    onPress={handleSaveEditCycle}
+                    disabled={editSubmitting}
+                  >
+                    <DollarSign size={14} color="#FFFFFF" />
+                    <Text style={styles.editSaveText}>
+                      {editSubmitting ? 'Saving...' : 'Save Changes'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
 
       {/* Month-End Rollover Modal */}
       <MonthEndModal
@@ -317,6 +460,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: Colors.light.textPrimary,
+  },
+  editCycleBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: Colors.light.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   personalBadge: {
     flexDirection: 'row',
@@ -399,5 +550,119 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
     textAlign: 'center',
     maxWidth: 240,
+  },
+  // Edit Cycle Modal
+  editModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(20, 19, 17, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  editModalCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: Colors.light.surface,
+    borderRadius: 16,
+    padding: 20,
+    gap: 14,
+  },
+  editModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  editModalTitleRow: {
+    flexDirection: 'row',
+    gap: 10,
+    flex: 1,
+  },
+  editModalIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: Colors.light.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editModalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.light.textPrimary,
+  },
+  editModalSubtitle: {
+    fontSize: 11,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
+  },
+  editInputGroup: {
+    gap: 5,
+  },
+  editInputLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.light.textPrimary,
+  },
+  editInput: {
+    height: 44,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    backgroundColor: Colors.light.surfaceRaised,
+    fontSize: 14,
+    color: Colors.light.textPrimary,
+  },
+  presetsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  presetBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: Colors.light.surfaceRaised,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  presetBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
+  },
+  editActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  editBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  editCancelBtn: {
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  editCancelText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.light.textPrimary,
+  },
+  editSaveBtn: {
+    backgroundColor: Colors.light.primary,
+  },
+  editSaveText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  disabledBtn: {
+    opacity: 0.6,
   },
 });

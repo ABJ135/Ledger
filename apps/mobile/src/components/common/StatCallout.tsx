@@ -1,5 +1,5 @@
 import React, { FC } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors } from '../../theme/colors';
 
 interface StatCalloutProps {
@@ -8,6 +8,7 @@ interface StatCalloutProps {
   subtext?: string;
   variant?: 'primary' | 'spent' | 'remaining';
   isOverBudget?: boolean;
+  onPress?: () => void;
 }
 
 export const StatCallout: FC<StatCalloutProps> = ({
@@ -16,6 +17,7 @@ export const StatCallout: FC<StatCalloutProps> = ({
   subtext,
   variant = 'primary',
   isOverBudget = false,
+  onPress,
 }) => {
   const theme = Colors.light;
 
@@ -26,13 +28,29 @@ export const StatCallout: FC<StatCalloutProps> = ({
     valueColor = isOverBudget ? theme.expenseAlert : theme.incomePositive;
   }
 
-  return (
-    <View style={styles.card}>
+  const content = (
+    <>
       <Text style={styles.label}>{label}</Text>
       <Text style={[styles.value, { color: valueColor }]}>{value}</Text>
       {subtext ? <Text style={styles.subtext}>{subtext}</Text> : null}
-    </View>
+    </>
   );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity
+        style={styles.card}
+        onPress={onPress}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={`${label}: ${value}`}
+      >
+        {content}
+      </TouchableOpacity>
+    );
+  }
+
+  return <View style={styles.card}>{content}</View>;
 };
 
 const styles = StyleSheet.create({
