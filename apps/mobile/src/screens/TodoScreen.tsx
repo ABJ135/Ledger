@@ -30,13 +30,17 @@ import {
   Sparkles,
   Tag,
   ChevronDown,
+  Sun,
+  Moon,
 } from 'lucide-react-native';
 import { Colors } from '../theme/colors';
+import { useTheme } from '../context/ThemeContext';
 import { formatPaisa, rupeesToPaisa } from '../utils/currency';
 import { IconCircle } from '../components/common/IconCircle';
 import { ConfirmModal } from '../components/common/ConfirmModal';
 
 export const TodoScreen: FC = () => {
+  const { colors, isDark, toggleTheme } = useTheme();
   const { data: todos = [], isLoading, refetch } = useGetTodosQuery();
   const { data: categories = [] } = useGetCategoriesQuery();
   const [createTodo] = useCreateTodoMutation();
@@ -137,25 +141,35 @@ export const TodoScreen: FC = () => {
 
   if (isLoading) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={Colors.light.primary} />
+      <View style={[styles.centerContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Top Bar */}
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <View>
-          <Text style={styles.title}>Wishlist</Text>
-          <Text style={styles.subtitle}>{todos.length} pre-expense tasks</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>Wishlist</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{todos.length} pre-expense tasks</Text>
         </View>
 
         <View style={styles.topActions}>
+          <TouchableOpacity
+            style={[styles.themeToggleBtn, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}
+            onPress={toggleTheme}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={isDark ? "Switch to light theme" : "Switch to dark theme"}
+          >
+            {isDark ? <Sun size={15} color={colors.primary} /> : <Moon size={15} color={colors.primary} />}
+          </TouchableOpacity>
+
           {todos.length > 0 && (
             <TouchableOpacity
-              style={styles.promoteAllBtn}
+              style={[styles.promoteAllBtn, { backgroundColor: colors.incomePositive }]}
               onPress={() => setConfirmPromoteAll(true)}
               activeOpacity={0.7}
             >
@@ -165,7 +179,7 @@ export const TodoScreen: FC = () => {
           )}
 
           <TouchableOpacity
-            style={styles.addBtn}
+            style={[styles.addBtn, { backgroundColor: colors.primary }]}
             onPress={() => setIsAddOpen(true)}
             activeOpacity={0.7}
           >
@@ -182,21 +196,21 @@ export const TodoScreen: FC = () => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[Colors.light.primary]}
+            colors={[colors.primary]}
           />
         }
       >
         {todos.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <IconCircle size={48} color={Colors.light.primary}>
-              <Sparkles size={24} color={Colors.light.primary} />
+            <IconCircle size={48} color={colors.primary}>
+              <Sparkles size={24} color={colors.primary} />
             </IconCircle>
-            <Text style={styles.emptyTitle}>No tasks yet</Text>
-            <Text style={styles.emptySubtitle}>
+            <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No tasks yet</Text>
+            <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
               Keep a backlog of desired purchases with estimated prices, then promote them into active monthly cycles.
             </Text>
             <TouchableOpacity
-              style={styles.emptyAddBtn}
+              style={[styles.emptyAddBtn, { backgroundColor: colors.primary }]}
               onPress={() => setIsAddOpen(true)}
               activeOpacity={0.7}
             >
@@ -205,30 +219,30 @@ export const TodoScreen: FC = () => {
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={styles.ledgerCard}>
+          <View style={[styles.ledgerCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             {todos.map((todo) => {
               const cat = categories.find((c) => c.id === todo.categoryId);
               return (
-                <View key={todo.id} style={styles.todoRow}>
+                <View key={todo.id} style={[styles.todoRow, { borderBottomColor: colors.border }]}>
                   {/* Left: Circle icon + content */}
                   <View style={styles.todoLeft}>
-                    <IconCircle size={28} color={Colors.light.primary}>
-                      <CheckSquare size={14} color={Colors.light.primary} />
+                    <IconCircle size={28} color={colors.primary}>
+                      <CheckSquare size={14} color={colors.primary} />
                     </IconCircle>
                     <View style={styles.todoInfo}>
-                      <Text style={styles.todoContent} numberOfLines={1}>
+                      <Text style={[styles.todoContent, { color: colors.textPrimary }]} numberOfLines={1}>
                         {todo.content}
                       </Text>
                       <View style={styles.todoMeta}>
                         {todo.price !== null ? (
-                          <Text style={styles.todoPrice}>{formatPaisa(todo.price)}</Text>
+                          <Text style={[styles.todoPrice, { color: colors.primary }]}>{formatPaisa(todo.price)}</Text>
                         ) : (
-                          <Text style={styles.todoUnpriced}>Unpriced estimate</Text>
+                          <Text style={[styles.todoUnpriced, { color: colors.textSecondary }]}>Unpriced estimate</Text>
                         )}
                         {cat && (
-                          <View style={styles.categoryBadge}>
-                            <Tag size={9} color={Colors.light.primary} />
-                            <Text style={styles.categoryBadgeText}>{cat.name}</Text>
+                          <View style={[styles.categoryBadge, { backgroundColor: colors.primarySoft }]}>
+                            <Tag size={9} color={colors.primary} />
+                            <Text style={[styles.categoryBadgeText, { color: colors.primary }]}>{cat.name}</Text>
                           </View>
                         )}
                       </View>
@@ -243,7 +257,7 @@ export const TodoScreen: FC = () => {
                       activeOpacity={0.6}
                       accessibilityLabel={`Promote ${todo.content}`}
                     >
-                      <ArrowUpRight size={17} color={Colors.light.incomePositive} />
+                      <ArrowUpRight size={17} color={colors.incomePositive} />
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -252,7 +266,7 @@ export const TodoScreen: FC = () => {
                       activeOpacity={0.6}
                       accessibilityLabel={`Delete ${todo.content}`}
                     >
-                      <Trash2 size={16} color={Colors.light.expenseAlert} />
+                      <Trash2 size={16} color={colors.expenseAlert} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -263,123 +277,126 @@ export const TodoScreen: FC = () => {
 
         {todos.length > 0 && (
           <TouchableOpacity
-            style={styles.clearAllBtn}
+            style={[styles.clearAllBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => setConfirmDeleteAll(true)}
             activeOpacity={0.7}
           >
-            <Trash2 size={14} color={Colors.light.expenseAlert} />
-            <Text style={styles.clearAllText}>Clear Entire Wishlist</Text>
+            <Trash2 size={14} color={colors.expenseAlert} />
+            <Text style={[styles.clearAllText, { color: colors.expenseAlert }]}>Clear Entire Wishlist</Text>
           </TouchableOpacity>
         )}
       </ScrollView>
 
-      {/* Add-Loop Modal (Spec B.8) */}
+      {/* Add-Loop Modal */}
       <Modal
         transparent
         visible={isAddOpen}
         animationType="fade"
         onRequestClose={() => setIsAddOpen(false)}
       >
-        <TouchableWithoutFeedback onPress={() => setIsAddOpen(false)}>
-          <View style={styles.modalBackdrop}>
-            <TouchableWithoutFeedback>
-              <View style={styles.modalCard}>
-                <View style={styles.modalHeader}>
-                  <View style={styles.modalTitleRow}>
-                    <IconCircle size={32} color={Colors.light.primary}>
-                      <Plus size={16} color={Colors.light.primary} />
-                    </IconCircle>
-                    <Text style={styles.modalTitle}>Quick Add Wishlist</Text>
-                  </View>
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setIsAddOpen(false)}
+          />
+
+          <View style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleRow}>
+                <IconCircle size={32} color={colors.primary}>
+                  <Plus size={16} color={colors.primary} />
+                </IconCircle>
+                <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Quick Add Wishlist</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setIsAddOpen(false)}
+                style={styles.modalClose}
+              >
+                <X size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: colors.textPrimary }]}>Item Name</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.surfaceRaised, borderColor: colors.border, color: colors.textPrimary }]}
+                  placeholder="e.g. Ergonomic Chair"
+                  placeholderTextColor={colors.textSecondary}
+                  value={newContent}
+                  onChangeText={setNewContent}
+                  autoFocus
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: colors.textPrimary }]}>Estimated Price in PKR (Optional)</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.surfaceRaised, borderColor: colors.border, color: colors.textPrimary }]}
+                  placeholder="e.g. 15000"
+                  placeholderTextColor={colors.textSecondary}
+                  keyboardType="numeric"
+                  value={newPriceRupees}
+                  onChangeText={setNewPriceRupees}
+                />
+              </View>
+
+              {/* Category picker */}
+              {categories.length > 0 && (
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.inputLabel, { color: colors.textPrimary }]}>Category (Optional)</Text>
                   <TouchableOpacity
-                    onPress={() => setIsAddOpen(false)}
-                    style={styles.modalClose}
+                    style={[styles.categoryPicker, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}
+                    onPress={() => setIsCategoryOpen(true)}
+                    activeOpacity={0.7}
                   >
-                    <X size={20} color={Colors.light.textSecondary} />
+                    {selectedCategory ? (
+                      <View style={styles.categoryPickerSelected}>
+                        <Tag size={13} color={colors.primary} />
+                        <Text style={[styles.categoryPickerSelectedText, { color: colors.primary }]}>
+                          {selectedCategory.name}
+                        </Text>
+                      </View>
+                    ) : (
+                      <Text style={[styles.categoryPickerPlaceholder, { color: colors.textSecondary }]}>Select a category…</Text>
+                    )}
+                    <ChevronDown size={15} color={colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
+              )}
 
-                <View style={styles.modalBody}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Item Name</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="e.g. Ergonomic Chair"
-                      placeholderTextColor={Colors.light.textSecondary}
-                      value={newContent}
-                      onChangeText={setNewContent}
-                      autoFocus
-                    />
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Estimated Price in PKR (Optional)</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="e.g. 15000"
-                      placeholderTextColor={Colors.light.textSecondary}
-                      keyboardType="numeric"
-                      value={newPriceRupees}
-                      onChangeText={setNewPriceRupees}
-                    />
-                  </View>
-
-                  {/* Category picker */}
-                  {categories.length > 0 && (
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.inputLabel}>Category (Optional)</Text>
-                      <TouchableOpacity
-                        style={styles.categoryPicker}
-                        onPress={() => setIsCategoryOpen(true)}
-                        activeOpacity={0.7}
-                      >
-                        {selectedCategory ? (
-                          <View style={styles.categoryPickerSelected}>
-                            <Tag size={13} color={Colors.light.primary} />
-                            <Text style={styles.categoryPickerSelectedText}>
-                              {selectedCategory.name}
-                            </Text>
-                          </View>
-                        ) : (
-                          <Text style={styles.categoryPickerPlaceholder}>Select a category…</Text>
-                        )}
-                        <ChevronDown size={15} color={Colors.light.textSecondary} />
-                      </TouchableOpacity>
-                    </View>
-                  )}
-
-                  <View style={styles.loopNote}>
-                    <Text style={styles.loopNoteText}>
-                      💡 Add-Loop: Tapping Add adds the item immediately and keeps the input ready for the next item.
-                    </Text>
-                  </View>
-
-                  <View style={styles.modalActions}>
-                    <TouchableOpacity
-                      style={[styles.modalBtn, styles.modalCancelBtn]}
-                      onPress={() => setIsAddOpen(false)}
-                    >
-                      <Text style={styles.modalCancelText}>Done</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.modalBtn,
-                        styles.modalSubmitBtn,
-                        (!newContent.trim() || isSubmitting) && styles.disabledBtn,
-                      ]}
-                      onPress={handleAddSubmit}
-                      disabled={!newContent.trim() || isSubmitting}
-                    >
-                      <Text style={styles.modalSubmitText}>
-                        {isSubmitting ? 'Adding...' : 'Add Item'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
+              <View style={[styles.loopNote, { backgroundColor: colors.primarySoft }]}>
+                <Text style={[styles.loopNoteText, { color: colors.primary }]}>
+                  💡 Add-Loop: Tapping Add adds the item immediately and keeps the input ready for the next item.
+                </Text>
               </View>
-            </TouchableWithoutFeedback>
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={[styles.modalBtn, styles.modalCancelBtn, { borderColor: colors.border }]}
+                  onPress={() => setIsAddOpen(false)}
+                >
+                  <Text style={[styles.modalCancelText, { color: colors.textPrimary }]}>Done</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.modalBtn,
+                    styles.modalSubmitBtn,
+                    { backgroundColor: colors.primary },
+                    (!newContent.trim() || isSubmitting) && styles.disabledBtn,
+                  ]}
+                  onPress={handleAddSubmit}
+                  disabled={!newContent.trim() || isSubmitting}
+                >
+                  <Text style={styles.modalSubmitText}>
+                    {isSubmitting ? 'Adding...' : 'Add Item'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
-        </TouchableWithoutFeedback>
+        </View>
       </Modal>
 
       {/* Category Picker Sheet */}
@@ -389,52 +406,54 @@ export const TodoScreen: FC = () => {
         animationType="slide"
         onRequestClose={() => setIsCategoryOpen(false)}
       >
-        <TouchableWithoutFeedback onPress={() => setIsCategoryOpen(false)}>
-          <View style={styles.sheetBackdrop}>
-            <TouchableWithoutFeedback>
-              <View style={styles.sheetCard}>
-                <View style={styles.sheetHeader}>
-                  <Text style={styles.sheetTitle}>Select Category</Text>
-                  <TouchableOpacity onPress={() => setIsCategoryOpen(false)}>
-                    <X size={20} color={Colors.light.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-                <ScrollView style={styles.sheetScroll}>
-                  <TouchableOpacity
-                    style={[
-                      styles.sheetOption,
-                      !selectedCategoryId && styles.sheetOptionSelected,
-                    ]}
-                    onPress={() => {
-                      setSelectedCategoryId(null);
-                      setIsCategoryOpen(false);
-                    }}
-                  >
-                    <Text style={styles.sheetOptionText}>No category</Text>
-                  </TouchableOpacity>
-                  {categories.map((cat) => (
-                    <TouchableOpacity
-                      key={cat.id}
-                      style={[
-                        styles.sheetOption,
-                        selectedCategoryId === cat.id && styles.sheetOptionSelected,
-                      ]}
-                      onPress={() => {
-                        setSelectedCategoryId(cat.id);
-                        setIsCategoryOpen(false);
-                      }}
-                    >
-                      <View style={styles.sheetOptionRow}>
-                        <Tag size={14} color={Colors.light.primary} />
-                        <Text style={styles.sheetOptionText}>{cat.name}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            </TouchableWithoutFeedback>
+        <View style={styles.sheetBackdrop}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setIsCategoryOpen(false)}
+          />
+
+          <View style={[styles.sheetCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[styles.sheetHeader, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.sheetTitle, { color: colors.textPrimary }]}>Select Category</Text>
+              <TouchableOpacity onPress={() => setIsCategoryOpen(false)}>
+                <X size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.sheetScroll}>
+              <TouchableOpacity
+                style={[
+                  styles.sheetOption,
+                  !selectedCategoryId && [styles.sheetOptionSelected, { backgroundColor: colors.primarySoft }],
+                ]}
+                onPress={() => {
+                  setSelectedCategoryId(null);
+                  setIsCategoryOpen(false);
+                }}
+              >
+                <Text style={[styles.sheetOptionText, { color: colors.textPrimary }]}>No category</Text>
+              </TouchableOpacity>
+              {categories.map((cat) => (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[
+                    styles.sheetOption,
+                    selectedCategoryId === cat.id && [styles.sheetOptionSelected, { backgroundColor: colors.primarySoft }],
+                  ]}
+                  onPress={() => {
+                    setSelectedCategoryId(cat.id);
+                    setIsCategoryOpen(false);
+                  }}
+                >
+                  <View style={styles.sheetOptionRow}>
+                    <Tag size={14} color={colors.primary} />
+                    <Text style={[styles.sheetOptionText, { color: colors.textPrimary }]}>{cat.name}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
-        </TouchableWithoutFeedback>
+        </View>
       </Modal>
 
       {/* Delete Single Confirm */}
@@ -474,7 +493,6 @@ export const TodoScreen: FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
   },
   centerContainer: {
     flex: 1,
@@ -487,18 +505,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: Colors.light.surface,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
   },
   title: {
     fontSize: 20,
     fontWeight: '700',
-    color: Colors.light.textPrimary,
   },
   subtitle: {
     fontSize: 12,
-    color: Colors.light.textSecondary,
     marginTop: 2,
   },
   topActions: {
@@ -506,11 +520,18 @@ const styles = StyleSheet.create({
     gap: 8,
     alignItems: 'center',
   },
+  themeToggleBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   promoteAllBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: Colors.light.incomePositive,
     paddingHorizontal: 10,
     paddingVertical: 7,
     borderRadius: 8,
@@ -524,7 +545,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: Colors.light.primary,
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 8,
@@ -539,11 +559,9 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   ledgerCard: {
-    backgroundColor: Colors.light.surface,
     borderRadius: 16,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: Colors.light.border,
   },
   todoRow: {
     minHeight: 56,
@@ -551,7 +569,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
     paddingHorizontal: 4,
     paddingVertical: 8,
   },
@@ -568,7 +585,6 @@ const styles = StyleSheet.create({
   todoContent: {
     fontSize: 14,
     fontWeight: '500',
-    color: Colors.light.textPrimary,
     marginBottom: 3,
   },
   todoMeta: {
@@ -580,18 +596,15 @@ const styles = StyleSheet.create({
   todoPrice: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.light.primary,
   },
   todoUnpriced: {
     fontSize: 11,
-    color: Colors.light.textSecondary,
     fontStyle: 'italic',
   },
   categoryBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: Colors.light.primarySoft,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 20,
@@ -599,7 +612,6 @@ const styles = StyleSheet.create({
   categoryBadgeText: {
     fontSize: 10,
     fontWeight: '600',
-    color: Colors.light.primary,
   },
   todoActions: {
     flexDirection: 'row',
@@ -624,7 +636,6 @@ const styles = StyleSheet.create({
   clearAllText: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.light.expenseAlert,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -634,13 +645,11 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.light.textPrimary,
     marginTop: 12,
     marginBottom: 6,
   },
   emptySubtitle: {
     fontSize: 13,
-    color: Colors.light.textSecondary,
     textAlign: 'center',
     lineHeight: 18,
     marginBottom: 20,
@@ -650,7 +659,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.light.primary,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 10,
@@ -663,7 +671,7 @@ const styles = StyleSheet.create({
   // Add Modal
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(20, 19, 17, 0.45)',
+    backgroundColor: 'rgba(20, 19, 17, 0.55)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -671,7 +679,6 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 340,
-    backgroundColor: Colors.light.surface,
     borderRadius: 16,
     padding: 20,
   },
@@ -689,7 +696,6 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.light.textPrimary,
   },
   modalClose: {
     padding: 4,
@@ -703,25 +709,19 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.light.textPrimary,
   },
   input: {
     height: 44,
     borderWidth: 1,
-    borderColor: Colors.light.border,
     borderRadius: 10,
     paddingHorizontal: 12,
-    backgroundColor: Colors.light.surfaceRaised,
     fontSize: 14,
-    color: Colors.light.textPrimary,
   },
   categoryPicker: {
     height: 44,
     borderWidth: 1,
-    borderColor: Colors.light.border,
     borderRadius: 10,
     paddingHorizontal: 12,
-    backgroundColor: Colors.light.surfaceRaised,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -733,21 +733,17 @@ const styles = StyleSheet.create({
   },
   categoryPickerSelectedText: {
     fontSize: 14,
-    color: Colors.light.textPrimary,
     fontWeight: '500',
   },
   categoryPickerPlaceholder: {
     fontSize: 14,
-    color: Colors.light.textSecondary,
   },
   loopNote: {
-    backgroundColor: Colors.light.surfaceRaised,
     borderRadius: 8,
     padding: 10,
   },
   loopNoteText: {
     fontSize: 11,
-    color: Colors.light.textSecondary,
     lineHeight: 15,
   },
   modalActions: {
@@ -764,16 +760,12 @@ const styles = StyleSheet.create({
   },
   modalCancelBtn: {
     borderWidth: 1,
-    borderColor: Colors.light.border,
   },
   modalCancelText: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.light.textPrimary,
   },
-  modalSubmitBtn: {
-    backgroundColor: Colors.light.primary,
-  },
+  modalSubmitBtn: {},
   disabledBtn: {
     opacity: 0.5,
   },
@@ -785,11 +777,10 @@ const styles = StyleSheet.create({
   // Category bottom sheet
   sheetBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(20, 19, 17, 0.5)',
+    backgroundColor: 'rgba(20, 19, 17, 0.55)',
     justifyContent: 'flex-end',
   },
   sheetCard: {
-    backgroundColor: Colors.light.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '60%',
@@ -802,12 +793,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
   },
   sheetTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.light.textPrimary,
   },
   sheetScroll: {
     paddingTop: 4,
@@ -816,11 +805,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
   },
-  sheetOptionSelected: {
-    backgroundColor: Colors.light.primarySoft,
-  },
+  sheetOptionSelected: {},
   sheetOptionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -828,6 +814,5 @@ const styles = StyleSheet.create({
   },
   sheetOptionText: {
     fontSize: 15,
-    color: Colors.light.textPrimary,
   },
 });

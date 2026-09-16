@@ -3,33 +3,70 @@
 @tailwind utilities;
 
 :root {
+  color-scheme: light;
   --background: #fafaf8;
   --surface: #ffffff;
-  --surface-raised: #f1f0ec;
+  --surface-raised: #f3f2ee;
+  --surface-subtle: #f8f7f4;
   --primary: #0b4f4a;
   --primary-hover: #083d39;
   --primary-soft: rgba(11, 79, 74, 0.08);
+  --primary-glow: rgba(11, 79, 74, 0.18);
   --income-positive: #1f8a70;
   --expense-alert: #c1543c;
   --warning: #b8862e;
   --text-primary: #1c1b19;
   --text-secondary: #6b6862;
+  --text-muted: #9e9b93;
   --border: #e7e4dd;
+  --border-subtle: #edeae4;
+  --card-shadow: 0 2px 10px rgba(28, 27, 25, 0.03), 0 1px 2px rgba(28, 27, 25, 0.02);
+  --elevated-shadow: 0 10px 25px -3px rgba(28, 27, 25, 0.06), 0 4px 6px -2px rgba(28, 27, 25, 0.03);
+
+  /* Category colors */
+  --cat-food: #e67e22;
+  --cat-housing: #5c6bc0;
+  --cat-transport: #00acc1;
+  --cat-utilities: #2e7d32;
+  --cat-shopping: #d81b60;
+  --cat-entertainment: #8e24aa;
+  --cat-health: #e53935;
+  --cat-other: #78909c;
 }
 
+:root.dark,
+html.dark,
+body.dark,
 .dark {
-  --background: #12130f;
-  --surface: #1c1d18;
-  --surface-raised: #262720;
+  color-scheme: dark;
+  --background: #0f100d;
+  --surface: #171814;
+  --surface-raised: #21231c;
+  --surface-subtle: #1c1d18;
   --primary: #3ecfb2;
   --primary-hover: #5edcc3;
   --primary-soft: rgba(62, 207, 178, 0.12);
+  --primary-glow: rgba(62, 207, 178, 0.22);
   --income-positive: #4fbe9e;
   --expense-alert: #e8785f;
   --warning: #e0ac55;
   --text-primary: #f3f1ec;
   --text-secondary: #a6a398;
-  --border: #33352c;
+  --text-muted: #6e6b62;
+  --border: #2c2e26;
+  --border-subtle: #24261f;
+  --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  --elevated-shadow: 0 14px 32px -4px rgba(0, 0, 0, 0.55);
+
+  /* Category colors - dark mode brightened */
+  --cat-food: #f39c12;
+  --cat-housing: #7986cb;
+  --cat-transport: #26c6da;
+  --cat-utilities: #4caf50;
+  --cat-shopping: #f06292;
+  --cat-entertainment: #ba68c8;
+  --cat-health: #ef5350;
+  --cat-other: #90a4ae;
 }
 
 body {
@@ -38,6 +75,8 @@ body {
   background-color: var(--background);
   color: var(--text-primary);
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Number display and stat headers */
@@ -51,8 +90,67 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* Focus rings as mandated by B.10 */
+/* Focus rings */
 :focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Glassmorphism & Elevation */
+.glass-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--card-shadow);
+  backdrop-filter: blur(12px);
+}
+
+.glass-card-elevated {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--elevated-shadow);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+}
+
+.glass-card-elevated:hover {
+  border-color: var(--primary-glow);
+}
+
+/* Shimmer animation for loading states */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--surface-raised) 25%,
+    var(--border) 37%,
+    var(--surface-raised) 63%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
 }

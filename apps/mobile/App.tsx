@@ -12,12 +12,18 @@ import { AccountScreen } from './src/screens/AccountScreen';
 import { BottomNav, TabType } from './src/components/layout/BottomNav';
 import { Colors } from './src/theme/colors';
 import { initSentryMobile, Sentry } from './src/sentry';
+import { initMobileApi } from './src/config/api';
 
 initSentryMobile();
+initMobileApi();
+
+import { useAuth } from './src/context/AuthContext';
+import { AuthModal } from './src/components/auth/AuthModal';
 
 function MainNavigator() {
   const [currentTab, setCurrentTab] = useState<TabType>('ledger');
   const { isDark, colors } = useTheme();
+  const { user, isLoading } = useAuth();
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.surface }]}>
@@ -37,6 +43,16 @@ function MainNavigator() {
           onSelectTab={(tab) => setCurrentTab(tab)}
         />
       </View>
+
+      {/* When logged out, display AuthModal */}
+      {!isLoading && !user && (
+        <AuthModal
+          isOpen={!user}
+          onClose={() => {}}
+          initialMode="login"
+          canDismiss={false}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -58,12 +74,10 @@ export default Sentry.wrap(App);
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: Colors.light.surface,
     paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight : 0,
   },
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
   },
   screenContent: {
     flex: 1,

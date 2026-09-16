@@ -5,10 +5,9 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  TouchableWithoutFeedback,
 } from 'react-native';
 import { AlertCircle } from 'lucide-react-native';
-import { Colors } from '../../theme/colors';
+import { useTheme } from '../../context/ThemeContext';
 import { IconCircle } from './IconCircle';
 
 interface ConfirmModalProps {
@@ -32,6 +31,8 @@ export const ConfirmModal: FC<ConfirmModalProps> = ({
   onCancel,
   isDestructive = true,
 }) => {
+  const { colors } = useTheme();
+
   if (!isOpen) return null;
 
   return (
@@ -41,51 +42,53 @@ export const ConfirmModal: FC<ConfirmModalProps> = ({
       animationType="fade"
       onRequestClose={onCancel}
     >
-      <TouchableWithoutFeedback onPress={onCancel}>
-        <View style={styles.backdrop}>
-          <TouchableWithoutFeedback>
-            <View style={styles.card}>
-              <View style={styles.header}>
-                <IconCircle
-                  size={36}
-                  color={isDestructive ? Colors.light.expenseAlert : Colors.light.primary}
-                >
-                  <AlertCircle
-                    size={20}
-                    color={isDestructive ? Colors.light.expenseAlert : Colors.light.primary}
-                  />
-                </IconCircle>
-                <Text style={styles.title}>{title}</Text>
-              </View>
+      <View style={styles.backdrop}>
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          activeOpacity={1}
+          onPress={onCancel}
+        />
 
-              <Text style={styles.description}>{description}</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.header}>
+            <IconCircle
+              size={36}
+              color={isDestructive ? colors.expenseAlert : colors.primary}
+            >
+              <AlertCircle
+                size={20}
+                color={isDestructive ? colors.expenseAlert : colors.primary}
+              />
+            </IconCircle>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
+          </View>
 
-              <View style={styles.buttonRow}>
-                <TouchableOpacity
-                  style={[styles.button, styles.cancelButton]}
-                  onPress={onCancel}
-                  activeOpacity={0.7}
-                  accessibilityLabel={cancelLabel}
-                >
-                  <Text style={styles.cancelButtonText}>{cancelLabel}</Text>
-                </TouchableOpacity>
+          <Text style={[styles.description, { color: colors.textSecondary }]}>{description}</Text>
 
-                <TouchableOpacity
-                  style={[
-                    styles.button,
-                    isDestructive ? styles.dangerButton : styles.primaryButton,
-                  ]}
-                  onPress={onConfirm}
-                  activeOpacity={0.7}
-                  accessibilityLabel={confirmLabel}
-                >
-                  <Text style={styles.confirmButtonText}>{confirmLabel}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </TouchableWithoutFeedback>
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              style={[styles.button, styles.cancelButton, { borderColor: colors.border }]}
+              onPress={onCancel}
+              activeOpacity={0.7}
+              accessibilityLabel={cancelLabel}
+            >
+              <Text style={[styles.cancelButtonText, { color: colors.textPrimary }]}>{cancelLabel}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.button,
+                { backgroundColor: isDestructive ? colors.expenseAlert : colors.primary },
+              ]}
+              onPress={onConfirm}
+              activeOpacity={0.7}
+              accessibilityLabel={confirmLabel}
+            >
+              <Text style={styles.confirmButtonText}>{confirmLabel}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </TouchableWithoutFeedback>
+      </View>
     </Modal>
   );
 };
@@ -93,7 +96,7 @@ export const ConfirmModal: FC<ConfirmModalProps> = ({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(20, 19, 17, 0.45)',
+    backgroundColor: 'rgba(20, 19, 17, 0.55)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -101,31 +104,30 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 340,
-    backgroundColor: Colors.light.surface,
     borderRadius: 16,
     padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
+    borderWidth: 1,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
-    shadowRadius: 25,
-    elevation: 6,
+    shadowRadius: 12,
+    elevation: 8,
+    zIndex: 10,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   title: {
     fontSize: 17,
-    fontWeight: '600',
-    color: Colors.light.textPrimary,
+    fontWeight: '700',
     flex: 1,
   },
   description: {
-    fontSize: 14,
-    color: Colors.light.textSecondary,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 19,
     marginBottom: 20,
   },
   buttonRow: {
@@ -140,20 +142,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cancelButton: {
-    backgroundColor: Colors.light.surface,
     borderWidth: 1,
-    borderColor: Colors.light.border,
   },
   cancelButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.light.textPrimary,
-  },
-  primaryButton: {
-    backgroundColor: Colors.light.primary,
-  },
-  dangerButton: {
-    backgroundColor: Colors.light.expenseAlert,
   },
   confirmButtonText: {
     fontSize: 14,

@@ -4,7 +4,6 @@ import {
   useGetMySharedExpensesQuery,
   useCreateSharedExpenseMutation,
   useJoinSharedExpenseMutation,
-  useUpgradeGuestMutation,
 } from '@repo/api-client';
 import {
   Sun,
@@ -18,39 +17,37 @@ import {
   LogOut,
   UserCheck,
   AlertCircle,
-  Loader2,
+  LogIn,
+  Sparkles,
+  Shield,
 } from 'lucide-react';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 interface SettingsPageProps {
   isDark: boolean;
   onToggleTheme: () => void;
   onOpenSharedModal?: () => void;
+  onOpenAuth?: (mode: 'login' | 'signup' | 'upgrade') => void;
 }
 
 export const SettingsPage: FC<SettingsPageProps> = ({
   isDark,
   onToggleTheme,
   onOpenSharedModal,
+  onOpenAuth,
 }) => {
-  const { user, logout, setAuthData } = useAuth();
+  const { user, logout } = useAuth();
   const { data: sharedGroups = [], refetch: refetchGroups } = useGetMySharedExpensesQuery();
 
   const [createGroup] = useCreateSharedExpenseMutation();
   const [joinGroup] = useJoinSharedExpenseMutation();
-  const [upgradeGuest] = useUpgradeGuestMutation();
 
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [newGroupName, setNewGroupName] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [sharedError, setSharedError] = useState<string | null>(null);
   const [sharedSuccess, setSharedSuccess] = useState<string | null>(null);
-
-  // Guest upgrade form state
-  const [upgradeEmail, setUpgradeEmail] = useState('');
-  const [upgradePassword, setUpgradePassword] = useState('');
-  const [isUpgrading, setIsUpgrading] = useState(false);
-  const [upgradeError, setUpgradeError] = useState<string | null>(null);
-  const [upgradeSuccess, setUpgradeSuccess] = useState(false);
+  const [isSignoutConfirmOpen, setIsSignoutConfirmOpen] = useState(false);
 
   const handleCopyCode = (code: string) => {
     navigator.clipboard.writeText(code);
@@ -87,23 +84,6 @@ export const SettingsPage: FC<SettingsPageProps> = ({
       refetchGroups();
     } catch (err: any) {
       setSharedError(err?.data?.message || 'Invalid or expired invite code');
-    }
-  };
-
-  const handleUpgradeAccount = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!upgradeEmail.trim() || !upgradePassword) return;
-    setIsUpgrading(true);
-    setUpgradeError(null);
-
-    try {
-      const res = await upgradeGuest({ email: upgradeEmail.trim(), password: upgradePassword }).unwrap();
-      setAuthData(res.user, res.tokens.accessToken);
-      setUpgradeSuccess(true);
-    } catch (err: any) {
-      setUpgradeError(err?.data?.message || err?.message || 'Upgrade failed. Please check credentials.');
-    } finally {
-      setIsUpgrading(false);
     }
   };
 
@@ -320,98 +300,121 @@ export const SettingsPage: FC<SettingsPageProps> = ({
             <div>
               <h3 className="font-semibold text-base text-text-primary">Account & Authentication</h3>
               <p className="text-xs text-text-secondary">
-                {user?.isGuest ? 'Guest Session' : 'Registered Full Account'}
+                {user?.isGuest ? 'Guest Session (Local Storage)' : 'Registered Cloud Account'}
               </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={logout}
-            className="h-8 px-3 rounded-btn border border-expense-alert text-expense-alert hover:bg-expense-alert/10 text-xs font-semibold transition-colors flex items-center gap-1.5"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Sign Out</span>
-          </button>
+          {!user?.isGuest && (
+            <button
+              type="button"
+              onClick={() => setIsSignoutConfirmOpen(true)}
+              className="h-8 px-3 rounded-btn border border-expense-alert text-expense-alert hover:bg-expense-alert/10 text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sign Out</span>
+            </button>
+          )}
         </div>
 
         {user?.isGuest ? (
           <div className="flex flex-col gap-4">
-            <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-btn flex flex-col gap-1.5">
+            <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-btn flex flex-col gap-2">
               <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-semibold text-xs">
                 <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>You are currently using a local Guest Session</span>
+                <span>You are currently using a temporary Guest Session</span>
               </div>
               <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
-                Upgrade in place to link your billing cycles, transactions, and categories to an email address.
-                <strong> Zero data will be lost</strong> — your account ID is preserved.
+                Your billing cycles, ledger expenses, and categories are saved only in this browser session. To prevent data loss and access your ledger from your mobile device, create a permanent account.
               </p>
             </div>
 
-            {upgradeSuccess ? (
-              <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-btn text-xs text-emerald-800 dark:text-emerald-300 font-medium">
-                ✓ Account successfully upgraded! A confirmation email has been dispatched via Brevo.
-              </div>
-            ) : (
-              <form onSubmit={handleUpgradeAccount} className="flex flex-col gap-3 max-w-md">
-                {upgradeError && (
-                  <div className="p-2.5 bg-rose-50 text-rose-700 text-xs rounded border border-rose-200">
-                    {upgradeError}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              {/* Action 1: Save Data & Create Account */}
+              <div className="p-4 rounded-btn border border-primary/30 bg-primary/5 flex flex-col justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 text-primary font-bold text-sm">
+                    <Sparkles className="w-4 h-4 text-primary shrink-0" />
+                    <span>Save Ledger & Register</span>
                   </div>
-                )}
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-semibold text-text-secondary">Email Address</label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="name@example.com"
-                    value={upgradeEmail}
-                    onChange={(e) => setUpgradeEmail(e.target.value)}
-                    className="h-9 px-3 rounded-btn bg-surface border border-border text-xs text-text-primary focus-visible:outline-2 focus-visible:outline-primary"
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-semibold text-text-secondary">Password (min 8 chars)</label>
-                  <input
-                    type="password"
-                    required
-                    minLength={8}
-                    placeholder="••••••••"
-                    value={upgradePassword}
-                    onChange={(e) => setUpgradePassword(e.target.value)}
-                    className="h-9 px-3 rounded-btn bg-surface border border-border text-xs text-text-primary focus-visible:outline-2 focus-visible:outline-primary"
-                  />
+                  <p className="text-xs text-text-secondary mt-1.5 leading-relaxed">
+                    Link your current cycles and transactions to an email address. <strong>Zero data will be lost.</strong>
+                  </p>
                 </div>
                 <button
-                  type="submit"
-                  disabled={isUpgrading}
-                  className="h-9 px-4 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white rounded-btn text-xs font-semibold transition-colors flex items-center justify-center gap-2 mt-1 shadow-sm"
+                  type="button"
+                  onClick={() => onOpenAuth?.('signup')}
+                  className="h-9 px-4 rounded-btn bg-primary hover:bg-primary-hover text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
                 >
-                  {isUpgrading ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Upgrading Session...</span>
-                    </>
-                  ) : (
-                    <span>Save Data & Upgrade Account</span>
-                  )}
+                  <span>Create Account</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
                 </button>
-              </form>
-            )}
+              </div>
+
+              {/* Action 2: Sign In with Existing Account */}
+              <div className="p-4 rounded-btn border border-border bg-surface-raised/40 flex flex-col justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 text-text-primary font-bold text-sm">
+                    <LogIn className="w-4 h-4 text-primary shrink-0" />
+                    <span>Switch to Existing Account</span>
+                  </div>
+                  <p className="text-xs text-text-secondary mt-1.5 leading-relaxed">
+                    Already registered? Sign in to load your permanent cloud account and synced ledgers.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onOpenAuth?.('login')}
+                  className="h-9 px-4 rounded-btn border border-border hover:bg-surface text-text-primary text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <span>Log In to Account</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
           </div>
         ) : (
-          <div className="p-4 bg-surface-raised/50 rounded-btn border border-border flex items-center justify-between">
-            <div>
-              <div className="text-xs text-text-secondary">Registered Email</div>
-              <div className="text-sm font-semibold text-text-primary mt-0.5">{user?.email}</div>
+          <div className="flex flex-col gap-3">
+            <div className="p-4 bg-surface-raised/50 rounded-btn border border-border flex items-center justify-between">
+              <div>
+                <div className="text-xs text-text-secondary uppercase tracking-wider font-semibold">Registered Email</div>
+                <div className="text-base font-bold text-text-primary mt-0.5">{user?.email}</div>
+              </div>
+              <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 rounded-pill text-xs font-semibold">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>Verified Cloud Account</span>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5 text-xs text-primary font-semibold">
-              <ShieldCheck className="w-4 h-4 text-primary" />
-              <span>Verified Session</span>
+
+            <div className="p-3.5 rounded-btn bg-surface border border-border flex items-center justify-between text-xs text-text-secondary">
+              <div className="flex items-center gap-2">
+                <Shield className="w-4 h-4 text-primary" />
+                <span>Continuous multi-device cloud sync enabled</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSignoutConfirmOpen(true)}
+                className="text-expense-alert hover:underline font-semibold cursor-pointer"
+              >
+                Sign Out
+              </button>
             </div>
           </div>
         )}
       </div>
+
+      {/* Confirm Sign Out Dialog */}
+      <ConfirmDialog
+        isOpen={isSignoutConfirmOpen}
+        title="Sign Out"
+        description={`Are you sure you want to sign out of ${user?.email || 'your account'}? You can sign back in anytime with your email and password.`}
+        confirmLabel="Sign Out"
+        onConfirm={async () => {
+          setIsSignoutConfirmOpen(false);
+          await logout();
+        }}
+        onCancel={() => setIsSignoutConfirmOpen(false)}
+      />
     </div>
   );
 };

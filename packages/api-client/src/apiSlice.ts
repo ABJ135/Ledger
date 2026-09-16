@@ -28,12 +28,47 @@ import type {
 } from '@repo/shared-types';
 
 let getAccessToken: (() => string | null) = () => null;
+let currentDirectToken: string | null = null;
+let getRefreshToken: (() => string | null) = () => null;
+let currentRefreshToken: string | null = null;
+
+let onTokenRefreshedCallback:
+  | ((data: { accessToken: string; refreshToken: string; user?: any }) => void)
+  | null = null;
+let onAuthFailedCallback: (() => void) | null = null;
+
 let currentBaseUrl: string =
-  (typeof process !== 'undefined' && (process.env.VITE_API_BASE_URL || process.env.EXPO_PUBLIC_API_URL)) ||
+  (typeof process !== 'undefined' && (
+    process.env.VITE_API_BASE_URL ||
+    process.env.EXPO_PUBLIC_API_BASE_URL ||
+    process.env.EXPO_PUBLIC_API_URL
+  )) ||
   'http://localhost:4000';
 
 export const setAuthTokenGetter = (getter: () => string | null) => {
   getAccessToken = getter;
+};
+
+export const setDirectToken = (token: string | null) => {
+  currentDirectToken = token;
+};
+
+export const setAuthRefreshTokenGetter = (getter: () => string | null) => {
+  getRefreshToken = getter;
+};
+
+export const setDirectRefreshToken = (token: string | null) => {
+  currentRefreshToken = token;
+};
+
+export const setOnTokenRefreshed = (
+  cb: ((data: { accessToken: string; refreshToken: string; user?: any }) => void) | null
+) => {
+  onTokenRefreshedCallback = cb;
+};
+
+export const setOnAuthFailed = (cb: (() => void) | null) => {
+  onAuthFailedCallback = cb;
 };
 
 export const setApiBaseUrl = (url: string) => {
@@ -42,18 +77,99 @@ export const setApiBaseUrl = (url: string) => {
 
 export const getApiBaseUrl = () => currentBaseUrl;
 
-const dynamicBaseQuery = async (args: any, apiInstance: any, extraOptions: any) => {
-  const rawBaseQuery = fetchBaseQuery({
+let refreshPromise: Promise<string | null> | null = null;
+
+const createRawBaseQuery = () =>
+  fetchBaseQuery({
     baseUrl: currentBaseUrl,
+    credentials: 'include',
     prepareHeaders: (headers) => {
-      const token = getAccessToken();
+      const token = currentDirectToken !== null ? currentDirectToken : getAccessToken();
       if (token) {
         headers.set('authorization', `Bearer ${token}`);
       }
       return headers;
     },
   });
-  return rawBaseQuery(args, apiInstance, extraOptions);
+
+const dynamicBaseQuery = async (args: any, apiInstance: any, extraOptions: any) => {
+  const rawBaseQuery = createRawBaseQuery();
+  let result = await rawBaseQuery(args, apiInstance, extraOptions);
+
+  // If request failed with 401 Unauthorized, attempt to refresh token and retry
+  if (result.error && result.error.status === 401) {
+    const requestUrl = typeof args === 'string' ? args : args?.url || '';
+    const isAuthUrl =
+      requestUrl.includes('/auth/login') ||
+      requestUrl.includes('/auth/signup') ||
+      requestUrl.includes('/auth/guest') ||
+      requestUrl.includes('/auth/refresh') ||
+      requestUrl.includes('/auth/logout');
+
+    if (!isAuthUrl) {
+      if (!refreshPromise) {
+        refreshPromise = (async (): Promise<string | null> => {
+          try {
+            const refreshToken = currentRefreshToken || getRefreshToken();
+            // Call POST /auth/refresh with token in body and cookie credentials
+            const refreshResult = await rawBaseQuery(
+              {
+                url: '/auth/refresh',
+                method: 'POST',
+                body: refreshToken ? { refreshToken } : {},
+              },
+              apiInstance,
+              extraOptions
+            );
+
+            if (refreshResult.data) {
+              const authResponse = refreshResult.data as AuthResponse;
+              const newAccess = authResponse.tokens.accessToken;
+              const newRefresh = authResponse.tokens.refreshToken;
+
+              currentDirectToken = newAccess;
+              currentRefreshToken = newRefresh;
+
+              if (onTokenRefreshedCallback) {
+                onTokenRefreshedCallback({
+                  accessToken: newAccess,
+                  refreshToken: newRefresh,
+                  user: authResponse.user,
+                });
+              }
+
+              return newAccess;
+            } else {
+              // Refresh failed - token expired or invalid
+              currentDirectToken = null;
+              currentRefreshToken = null;
+              if (onAuthFailedCallback) {
+                onAuthFailedCallback();
+              }
+              return null;
+            }
+          } catch {
+            currentDirectToken = null;
+            currentRefreshToken = null;
+            if (onAuthFailedCallback) {
+              onAuthFailedCallback();
+            }
+            return null;
+          }
+        })().finally(() => {
+          refreshPromise = null;
+        });
+      }
+
+      const freshToken = await refreshPromise;
+      if (freshToken) {
+        // Retry the original query with the newly acquired access token!
+        result = await rawBaseQuery(args, apiInstance, extraOptions);
+      }
+    }
+  }
+
+  return result;
 };
 
 export const api = createApi({
@@ -68,6 +184,22 @@ export const api = createApi({
         method: 'POST',
         body,
       }),
+      async onQueryStarted(_arg, { queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          if (data?.tokens?.accessToken) {
+            currentDirectToken = data.tokens.accessToken;
+            currentRefreshToken = data.tokens.refreshToken;
+            if (onTokenRefreshedCallback) {
+              onTokenRefreshedCallback({
+                accessToken: data.tokens.accessToken,
+                refreshToken: data.tokens.refreshToken,
+                user: data.user,
+              });
+            }
+          }
+        } catch {}
+      },
       invalidatesTags: ['Auth', 'Month', 'Expense', 'Category', 'Todo', 'SharedExpense'],
     }),
     signup: builder.mutation<AuthResponse, SignupDto>({
@@ -76,7 +208,23 @@ export const api = createApi({
         method: 'POST',
         body,
       }),
-      invalidatesTags: ['Auth'],
+      async onQueryStarted(_arg, { queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          if (data?.tokens?.accessToken) {
+            currentDirectToken = data.tokens.accessToken;
+            currentRefreshToken = data.tokens.refreshToken;
+            if (onTokenRefreshedCallback) {
+              onTokenRefreshedCallback({
+                accessToken: data.tokens.accessToken,
+                refreshToken: data.tokens.refreshToken,
+                user: data.user,
+              });
+            }
+          }
+        } catch {}
+      },
+      invalidatesTags: ['Auth', 'Month', 'Expense', 'Category', 'Todo', 'SharedExpense'],
     }),
     upgradeGuest: builder.mutation<AuthResponse, UpgradeGuestDto>({
       query: (body) => ({
@@ -84,7 +232,23 @@ export const api = createApi({
         method: 'POST',
         body,
       }),
-      invalidatesTags: ['Auth'],
+      async onQueryStarted(_arg, { queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          if (data?.tokens?.accessToken) {
+            currentDirectToken = data.tokens.accessToken;
+            currentRefreshToken = data.tokens.refreshToken;
+            if (onTokenRefreshedCallback) {
+              onTokenRefreshedCallback({
+                accessToken: data.tokens.accessToken,
+                refreshToken: data.tokens.refreshToken,
+                user: data.user,
+              });
+            }
+          }
+        } catch {}
+      },
+      invalidatesTags: ['Auth', 'Month', 'Expense', 'Category', 'Todo', 'SharedExpense'],
     }),
     login: builder.mutation<AuthResponse, LoginDto>({
       query: (body) => ({
@@ -92,6 +256,22 @@ export const api = createApi({
         method: 'POST',
         body,
       }),
+      async onQueryStarted(_arg, { queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          if (data?.tokens?.accessToken) {
+            currentDirectToken = data.tokens.accessToken;
+            currentRefreshToken = data.tokens.refreshToken;
+            if (onTokenRefreshedCallback) {
+              onTokenRefreshedCallback({
+                accessToken: data.tokens.accessToken,
+                refreshToken: data.tokens.refreshToken,
+                user: data.user,
+              });
+            }
+          }
+        } catch {}
+      },
       invalidatesTags: ['Auth', 'Month', 'Expense', 'Category', 'Todo', 'SharedExpense'],
     }),
     refreshToken: builder.mutation<AuthResponse, RefreshTokenDto>({
@@ -100,14 +280,37 @@ export const api = createApi({
         method: 'POST',
         body,
       }),
+      async onQueryStarted(_arg, { queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          if (data?.tokens?.accessToken) {
+            currentDirectToken = data.tokens.accessToken;
+            currentRefreshToken = data.tokens.refreshToken;
+            if (onTokenRefreshedCallback) {
+              onTokenRefreshedCallback({
+                accessToken: data.tokens.accessToken,
+                refreshToken: data.tokens.refreshToken,
+                user: data.user,
+              });
+            }
+          }
+        } catch {}
+      },
     }),
-    logout: builder.mutation<void, { refreshToken?: string }>({
-      query: (body) => ({
+    logout: builder.mutation<void, { refreshToken?: string } | void>({
+      query: (body = {}) => ({
         url: '/auth/logout',
         method: 'POST',
-        body,
+        body: body || {},
       }),
-      invalidatesTags: ['Auth'],
+      async onQueryStarted(_arg, { queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          currentDirectToken = null;
+          currentRefreshToken = null;
+        } catch {}
+      },
+      invalidatesTags: ['Auth', 'Month', 'Expense', 'Category', 'Todo', 'SharedExpense'],
     }),
 
     // Months
@@ -343,6 +546,8 @@ export const {
   useExportMonthCsvQuery,
   useLazyExportMonthCsvQuery,
 } = api;
+
+export const apiSlice = api;
 
 /**
  * Browser helper to trigger instant direct file download of the CSV stream.

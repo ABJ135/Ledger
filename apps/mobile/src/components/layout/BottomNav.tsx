@@ -1,7 +1,7 @@
 import React, { FC } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Layers, Calendar, CheckSquare, UserCheck } from 'lucide-react-native';
-import { Colors } from '../../theme/colors';
+import { useTheme } from '../../context/ThemeContext';
 
 export type TabType = 'ledger' | 'cycles' | 'todo' | 'account';
 
@@ -11,111 +11,81 @@ interface BottomNavProps {
 }
 
 export const BottomNav: FC<BottomNavProps> = ({ currentTab, onSelectTab }) => {
+  const { colors } = useTheme();
+
+  const tabs = [
+    { id: 'ledger' as TabType, label: 'Ledger', icon: Layers },
+    { id: 'cycles' as TabType, label: 'Cycles', icon: Calendar },
+    { id: 'todo' as TabType, label: 'Wishlist', icon: CheckSquare },
+    { id: 'account' as TabType, label: 'Account', icon: UserCheck },
+  ];
+
   return (
-    <View style={styles.navBar}>
-      <TouchableOpacity
-        style={styles.tabItem}
-        onPress={() => onSelectTab('ledger')}
-        activeOpacity={0.7}
-      >
-        <Layers
-          size={19}
-          color={currentTab === 'ledger' ? Colors.light.primary : Colors.light.textSecondary}
-        />
-        <Text
-          style={[
-            styles.tabText,
-            currentTab === 'ledger' && styles.activeTabText,
-          ]}
-        >
-          Ledger
-        </Text>
-      </TouchableOpacity>
+    <View style={[styles.navBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+      {tabs.map((tab) => {
+        const Icon = tab.icon;
+        const isActive = currentTab === tab.id;
 
-      <TouchableOpacity
-        style={styles.tabItem}
-        onPress={() => onSelectTab('cycles')}
-        activeOpacity={0.7}
-      >
-        <Calendar
-          size={19}
-          color={currentTab === 'cycles' ? Colors.light.primary : Colors.light.textSecondary}
-        />
-        <Text
-          style={[
-            styles.tabText,
-            currentTab === 'cycles' && styles.activeTabText,
-          ]}
-        >
-          Cycles
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.tabItem}
-        onPress={() => onSelectTab('todo')}
-        activeOpacity={0.7}
-      >
-        <CheckSquare
-          size={19}
-          color={currentTab === 'todo' ? Colors.light.primary : Colors.light.textSecondary}
-        />
-        <Text
-          style={[
-            styles.tabText,
-            currentTab === 'todo' && styles.activeTabText,
-          ]}
-        >
-          Wishlist
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.tabItem}
-        onPress={() => onSelectTab('account')}
-        activeOpacity={0.7}
-      >
-        <UserCheck
-          size={19}
-          color={currentTab === 'account' ? Colors.light.primary : Colors.light.textSecondary}
-        />
-        <Text
-          style={[
-            styles.tabText,
-            currentTab === 'account' && styles.activeTabText,
-          ]}
-        >
-          Account
-        </Text>
-      </TouchableOpacity>
+        return (
+          <TouchableOpacity
+            key={tab.id}
+            style={styles.tabItem}
+            onPress={() => onSelectTab(tab.id)}
+            activeOpacity={0.7}
+          >
+            <View
+              style={[
+                styles.iconContainer,
+                isActive && { backgroundColor: colors.primarySoft },
+              ]}
+            >
+              <Icon
+                size={18}
+                color={isActive ? colors.primary : colors.textSecondary}
+              />
+            </View>
+            <Text
+              style={[
+                styles.tabText,
+                { color: isActive ? colors.primary : colors.textSecondary },
+                isActive && styles.activeTabText,
+              ]}
+            >
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   navBar: {
-    height: 56,
+    height: 60,
     flexDirection: 'row',
-    backgroundColor: Colors.light.surface,
     borderTopWidth: 1,
-    borderTopColor: Colors.light.border,
     alignItems: 'center',
     justifyContent: 'space-around',
+    paddingBottom: 4,
   },
   tabItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
-    paddingVertical: 4,
+    gap: 2,
+    paddingVertical: 2,
+    paddingHorizontal: 16,
+  },
+  iconContainer: {
     paddingHorizontal: 12,
+    paddingVertical: 3,
+    borderRadius: 12,
   },
   tabText: {
     fontSize: 10.5,
     fontWeight: '500',
-    color: Colors.light.textSecondary,
   },
   activeTabText: {
-    color: Colors.light.primary,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });

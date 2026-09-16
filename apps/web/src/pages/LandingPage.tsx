@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   useGetMonthsQuery,
   useGetMonthByIdQuery,
@@ -11,14 +11,14 @@ import {
   downloadMonthCsv,
 } from '@repo/api-client';
 import { Expense } from '@repo/shared-types';
-import { StatCallouts } from '../components/expense/StatCallouts';
-import { ExpenseEntryForm } from '../components/expense/ExpenseEntryForm';
-import { LedgerRow } from '../components/expense/LedgerRow';
+import { BudgetPacingHero } from '../components/dashboard/BudgetPacingHero';
+import { SpendingBreakdownChart } from '../components/dashboard/SpendingBreakdownChart';
+import { PowerLedgerTable } from '../components/expense/PowerLedgerTable';
+import { QuickExpenseModal } from '../components/expense/QuickExpenseModal';
 import { EditExpenseModal } from '../components/expense/EditExpenseModal';
 import { EditCycleModal } from '../components/expense/EditCycleModal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import { ReceiptText, Loader2, Download, Pencil, Calendar } from 'lucide-react';
-import { formatPktDate } from '../utils/date';
+import { Loader2 } from 'lucide-react';
 
 interface LandingPageProps {
   context?: 'personal' | 'shared';
@@ -29,12 +29,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   context = 'personal',
   sharedExpenseId,
 }) => {
-  // Fetch months list to get the active current month
+  // Fetch months list to get active current cycle
   const { data: months, isLoading: monthsLoading } = useGetMonthsQuery({
     context,
     sharedExpenseId,
   });
-  const currentMonth = months?.find((m) => m.isCurrent) || months?.[0];
+  const currentMonth = months?.find((m) => m.isCurrent) || months?.[0] || null;
 
   // Fetch month detail with server-computed totals
   const { data: monthDetail, isLoading: detailLoading } = useGetMonthByIdQuery(
@@ -52,10 +52,29 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [updateMonth] = useUpdateMonthMutation();
   const [createMonth] = useCreateMonthMutation();
 
-  // Dialog and Modal state
+  // UI Modals state
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [deletingExpense, setDeletingExpense] = useState<Expense | null>(null);
   const [isEditCycleOpen, setIsEditCycleOpen] = useState(false);
+  const [filterCategoryId, setFilterCategoryId] = useState<string | null>(null);
+
+  // Global hotkey: Press 'n' to quickly record an expense
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.key === 'n' &&
+        !['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName) &&
+        !e.metaKey &&
+        !e.ctrlKey
+      ) {
+        e.preventDefault();
+        if (currentMonth) setIsQuickAddOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentMonth]);
 
   const handleSaveCycle = async (data: {
     id?: string;
@@ -122,8 +141,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   if (monthsLoading || (currentMonth && detailLoading)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-3 text-text-secondary">
-        <Loader2 className="w-6 h-6 animate-spin text-primary" />
-        <span className="text-sm font-medium">Loading active cycle...</span>
+        <Loader2 className="w-7 h-7 animate-spin text-primary" />
+        <span className="text-sm font-medium">Loading financial dashboard...</span>
       </div>
     );
   }
@@ -131,109 +150,45 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const expenses = monthDetail?.expenses || [];
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Active Cycle Header Bar */}
-      {currentMonth && (
-        <div className="bg-surface rounded-card p-4 border border-border shadow-xs flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center">
-              <Calendar className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-text-primary tracking-tight">
-                  {currentMonth.label}
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setIsEditCycleOpen(true)}
-                  className="p-1 rounded-md text-text-secondary hover:text-primary hover:bg-surface-raised transition-colors"
-                  title="Rename cycle or change budget"
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <span className="text-xs text-text-secondary">
-                Started {formatPktDate(currentMonth.startAt)} • Active Cycle
-              </span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setIsEditCycleOpen(true)}
-            className="h-8 px-3 rounded-btn border border-border hover:bg-surface-raised text-xs font-semibold text-text-secondary hover:text-text-primary transition-colors flex items-center gap-1.5"
-          >
-            <Pencil className="w-3.5 h-3.5" />
-            <span>Edit Cycle & Budget</span>
-          </button>
-        </div>
-      )}
-
-      {/* Stat Callouts (Hero numbers) */}
-      <StatCallouts
+    <div className="flex flex-col gap-6 pb-12">
+      {/* 1. Financial Hero Pulse Card: Budget, Spent, Remaining, Daily Pacing Dial */}
+      <BudgetPacingHero
+        currentMonth={currentMonth}
         totals={monthDetail?.totals}
         onEditBudget={() => setIsEditCycleOpen(true)}
+        onOpenQuickAdd={() => setIsQuickAddOpen(true)}
       />
 
-      {/* Expense Entry Form */}
+      {/* 2. Visual Spending Breakdown by Category: Donut Chart & Category Progress */}
+      <SpendingBreakdownChart
+        expenses={expenses}
+        categories={categories}
+        selectedCategoryId={filterCategoryId}
+        onSelectCategory={setFilterCategoryId}
+      />
+
+      {/* 3. Searchable Power Ledger Table */}
+      <PowerLedgerTable
+        expenses={expenses}
+        categories={categories}
+        selectedCategoryId={filterCategoryId}
+        onSelectCategory={setFilterCategoryId}
+        onEditExpense={setEditingExpense}
+        onDeleteExpense={setDeletingExpense}
+        onOpenQuickAdd={() => setIsQuickAddOpen(true)}
+        onExportCsv={currentMonth ? () => downloadMonthCsv(currentMonth.id) : undefined}
+      />
+
+      {/* Quick Add Modal (Hotkey 'N') */}
       {currentMonth && (
-        <ExpenseEntryForm
+        <QuickExpenseModal
+          isOpen={isQuickAddOpen}
           monthId={currentMonth.id}
           categories={categories}
+          onClose={() => setIsQuickAddOpen(false)}
           onSubmit={handleAddExpense}
         />
       )}
-
-      {/* Expense List (The Ledger Rule) */}
-      <div className="bg-surface rounded-card border border-border shadow-card overflow-hidden">
-        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-[15px] font-semibold text-text-primary tracking-tight">
-              Cycle Transactions
-            </span>
-            <span className="px-2 py-0.5 rounded-pill text-[11px] font-semibold bg-surface-raised text-text-secondary border border-border">
-              {expenses.length}
-            </span>
-          </div>
-          {currentMonth && expenses.length > 0 && (
-            <button
-              type="button"
-              onClick={() => downloadMonthCsv(currentMonth.id)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10 rounded-lg transition-colors border border-primary/20"
-              title="Download transactions as CSV file"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Export CSV</span>
-            </button>
-          )}
-        </div>
-
-        {expenses.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-3">
-              <ReceiptText className="w-6 h-6" />
-            </div>
-            <h4 className="text-base font-semibold text-text-primary">
-              No transactions recorded yet
-            </h4>
-            <p className="text-sm text-text-secondary max-w-sm mt-1">
-              Add your first expense above to start tracking your spending in this billing cycle.
-            </p>
-          </div>
-        ) : (
-          <div className="divide-y divide-border">
-            {expenses.map((expense) => (
-              <LedgerRow
-                key={expense.id}
-                expense={expense}
-                onEdit={setEditingExpense}
-                onDelete={setDeletingExpense}
-              />
-            ))}
-          </div>
-        )}
-      </div>
 
       {/* Edit Modal */}
       <EditExpenseModal
@@ -248,7 +203,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <ConfirmDialog
         isOpen={!!deletingExpense}
         title="Delete Expense"
-        description={`Are you sure you want to delete "${deletingExpense?.content}"? This action cannot be undone.`}
+        description={`Are you sure you want to delete "${deletingExpense?.content}"? This transaction will be removed from your cycle.`}
         confirmLabel="Delete"
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeletingExpense(null)}

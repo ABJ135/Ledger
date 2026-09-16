@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Category } from '@repo/shared-types';
 import { Plus, Calendar, Tag, DollarSign, Edit3 } from 'lucide-react-native';
-import { Colors } from '../../theme/colors';
+import { useTheme } from '../../context/ThemeContext';
 import { getNowPktString, pktToUtcIso } from '../../utils/date';
 import { rupeesToPaisa } from '../../utils/currency';
 
@@ -27,6 +27,7 @@ export const QuickExpenseForm: FC<QuickExpenseFormProps> = ({
   categories,
   onSubmit,
 }) => {
+  const { colors } = useTheme();
   const [content, setContent] = useState('');
   const [rupees, setRupees] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>(
@@ -64,17 +65,17 @@ export const QuickExpenseForm: FC<QuickExpenseFormProps> = ({
   };
 
   return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>Quick Entry</Text>
+    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Quick Entry</Text>
 
       {/* Description / Content */}
       <View style={styles.inputGroup}>
-        <View style={styles.inputWrapper}>
-          <Edit3 size={16} color={Colors.light.textSecondary} style={styles.inputIcon} />
+        <View style={[styles.inputWrapper, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}>
+          <Edit3 size={16} color={colors.textSecondary} style={styles.inputIcon} />
           <TextInput
-            style={styles.input}
+            style={[styles.input, { color: colors.textPrimary }]}
             placeholder="Expense description (e.g. Lunch with team)"
-            placeholderTextColor={Colors.light.textSecondary}
+            placeholderTextColor={colors.textSecondary}
             value={content}
             onChangeText={setContent}
           />
@@ -83,24 +84,24 @@ export const QuickExpenseForm: FC<QuickExpenseFormProps> = ({
 
       {/* Amount in PKR & Date */}
       <View style={styles.row}>
-        <View style={[styles.inputWrapper, { flex: 1 }]}>
-          <DollarSign size={16} color={Colors.light.textSecondary} style={styles.inputIcon} />
+        <View style={[styles.inputWrapper, { flex: 1, backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}>
+          <DollarSign size={16} color={colors.textSecondary} style={styles.inputIcon} />
           <TextInput
-            style={styles.input}
+            style={[styles.input, { color: colors.textPrimary }]}
             placeholder="Amount in PKR"
-            placeholderTextColor={Colors.light.textSecondary}
+            placeholderTextColor={colors.textSecondary}
             keyboardType="numeric"
             value={rupees}
             onChangeText={setRupees}
           />
         </View>
 
-        <View style={[styles.inputWrapper, { flex: 1 }]}>
-          <Calendar size={16} color={Colors.light.textSecondary} style={styles.inputIcon} />
+        <View style={[styles.inputWrapper, { flex: 1, backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}>
+          <Calendar size={16} color={colors.textSecondary} style={styles.inputIcon} />
           <TextInput
-            style={styles.input}
+            style={[styles.input, { color: colors.textPrimary }]}
             placeholder="YYYY-MM-DDTHH:mm"
-            placeholderTextColor={Colors.light.textSecondary}
+            placeholderTextColor={colors.textSecondary}
             value={pktDateTime}
             onChangeText={setPktDateTime}
           />
@@ -109,7 +110,7 @@ export const QuickExpenseForm: FC<QuickExpenseFormProps> = ({
 
       {/* Categories chips */}
       <View style={styles.categorySection}>
-        <Text style={styles.categoryLabel}>Category</Text>
+        <Text style={[styles.categoryLabel, { color: colors.textSecondary }]}>Category</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
           {categories.map((cat) => {
             const isSelected = selectedCategoryId === cat.id;
@@ -118,18 +119,20 @@ export const QuickExpenseForm: FC<QuickExpenseFormProps> = ({
                 key={cat.id}
                 style={[
                   styles.categoryChip,
-                  isSelected && styles.categoryChipSelected,
+                  { backgroundColor: colors.surfaceRaised, borderColor: colors.border },
+                  isSelected && { backgroundColor: colors.primary, borderColor: colors.primary },
                 ]}
                 onPress={() => setSelectedCategoryId(cat.id)}
                 activeOpacity={0.7}
               >
                 <Tag
                   size={12}
-                  color={isSelected ? '#FFFFFF' : Colors.light.textSecondary}
+                  color={isSelected ? '#FFFFFF' : colors.textSecondary}
                 />
                 <Text
                   style={[
                     styles.chipText,
+                    { color: colors.textPrimary },
                     isSelected && styles.chipTextSelected,
                   ]}
                 >
@@ -145,6 +148,7 @@ export const QuickExpenseForm: FC<QuickExpenseFormProps> = ({
       <TouchableOpacity
         style={[
           styles.submitButton,
+          { backgroundColor: colors.primary },
           (!content.trim() || !rupees || isSubmitting) && styles.submitButtonDisabled,
         ]}
         onPress={handleSubmit}
@@ -163,17 +167,14 @@ export const QuickExpenseForm: FC<QuickExpenseFormProps> = ({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: Colors.light.surface,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: Colors.light.border,
     marginBottom: 16,
   },
   cardTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.light.textPrimary,
     marginBottom: 12,
   },
   inputGroup: {
@@ -189,10 +190,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     height: 44,
     borderWidth: 1,
-    borderColor: Colors.light.border,
     borderRadius: 10,
     paddingHorizontal: 12,
-    backgroundColor: Colors.light.surfaceRaised,
   },
   inputIcon: {
     marginRight: 8,
@@ -201,7 +200,6 @@ const styles = StyleSheet.create({
     flex: 1,
     height: '100%',
     fontSize: 14,
-    color: Colors.light.textPrimary,
   },
   categorySection: {
     marginBottom: 12,
@@ -209,7 +207,6 @@ const styles = StyleSheet.create({
   categoryLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: Colors.light.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 6,
@@ -223,19 +220,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
-    backgroundColor: Colors.light.surfaceRaised,
     borderWidth: 1,
-    borderColor: Colors.light.border,
     marginRight: 8,
     gap: 6,
   },
-  categoryChipSelected: {
-    backgroundColor: Colors.light.primary,
-    borderColor: Colors.light.primary,
-  },
   chipText: {
     fontSize: 12,
-    color: Colors.light.textPrimary,
   },
   chipTextSelected: {
     color: '#FFFFFF',
@@ -243,7 +233,6 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     height: 44,
-    backgroundColor: Colors.light.primary,
     borderRadius: 10,
     flexDirection: 'row',
     alignItems: 'center',

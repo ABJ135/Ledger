@@ -13,7 +13,7 @@ import {
   Trash2,
   CloudOff,
 } from 'lucide-react-native';
-import { Colors } from '../../theme/colors';
+import { useTheme } from '../../context/ThemeContext';
 import { IconCircle } from '../common/IconCircle';
 import { formatPaisa } from '../../utils/currency';
 import { formatPktTime } from '../../utils/date';
@@ -38,20 +38,21 @@ const getCategoryIcon = (categoryName?: string, color = '#0B4F4A') => {
 };
 
 export const LedgerRow: FC<LedgerRowProps> = ({ expense, onDelete }) => {
+  const { colors } = useTheme();
   const categoryName = expense.category?.name || 'General';
-  const categoryColor = Colors.light.primary;
+  const categoryColor = colors.primary;
 
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, { borderBottomColor: colors.border }]}>
       <View style={styles.left}>
         <IconCircle size={28} color={categoryColor}>
           {getCategoryIcon(categoryName, categoryColor)}
         </IconCircle>
         <View style={styles.details}>
-          <Text style={styles.description} numberOfLines={1}>
+          <Text style={[styles.description, { color: colors.textPrimary }]} numberOfLines={1}>
             {expense.content}
           </Text>
-          <Text style={styles.category}>{categoryName}</Text>
+          <Text style={[styles.category, { color: colors.textSecondary }]}>{categoryName}</Text>
         </View>
       </View>
 
@@ -59,11 +60,11 @@ export const LedgerRow: FC<LedgerRowProps> = ({ expense, onDelete }) => {
         <View style={styles.amountContainer}>
           <View style={styles.amountRow}>
             {expense.syncStatus && expense.syncStatus !== 'synced' && (
-              <CloudOff size={12} color={Colors.light.warning} style={styles.syncIcon} />
+              <CloudOff size={12} color={colors.warning} style={styles.syncIcon} />
             )}
-            <Text style={styles.amount}>{formatPaisa(expense.amount)}</Text>
+            <Text style={[styles.amount, { color: colors.textPrimary }]}>{formatPaisa(expense.amount)}</Text>
           </View>
-          <Text style={styles.time}>{formatPktTime(expense.occurredAt)}</Text>
+          <Text style={[styles.time, { color: colors.textSecondary }]}>{formatPktTime(expense.occurredAt)}</Text>
         </View>
 
         {onDelete ? (
@@ -73,7 +74,7 @@ export const LedgerRow: FC<LedgerRowProps> = ({ expense, onDelete }) => {
             activeOpacity={0.6}
             accessibilityLabel={`Delete ${expense.content}`}
           >
-            <Trash2 size={15} color={Colors.light.expenseAlert} />
+            <Trash2 size={15} color={colors.expenseAlert} />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -88,7 +89,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
     paddingHorizontal: 4,
   },
   left: {
@@ -104,17 +104,15 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 13,
     fontWeight: '500',
-    color: Colors.light.textPrimary,
-    marginBottom: 2,
   },
   category: {
-    fontSize: 11,
-    color: Colors.light.textSecondary,
+    fontSize: 10,
+    marginTop: 1,
   },
   right: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
   },
   amountContainer: {
     alignItems: 'flex-end',
@@ -128,20 +126,15 @@ const styles = StyleSheet.create({
     marginRight: 2,
   },
   amount: {
-    fontSize: 13,
+    fontSize: 13.5,
     fontWeight: '600',
-    color: Colors.light.textPrimary,
-    letterSpacing: -0.2,
   },
   time: {
-    fontSize: 11,
-    color: Colors.light.textSecondary,
+    fontSize: 10,
+    marginTop: 1,
   },
   deleteButton: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: 6,
     borderRadius: 6,
   },
 });

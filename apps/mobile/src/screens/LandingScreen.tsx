@@ -6,9 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Modal,
-  TextInput,
-  TouchableWithoutFeedback,
   RefreshControl,
 } from 'react-native';
 import { Expense, SharedExpense } from '@repo/shared-types';
@@ -22,21 +19,31 @@ import {
   useUpdateMonthMutation,
   useGetMySharedExpensesQuery,
 } from '@repo/api-client';
-import { CalendarCheck, ShieldCheck, Users, Pencil, DollarSign, X } from 'lucide-react-native';
+import { CalendarCheck, ShieldCheck, Users, Pencil, Calendar, LogIn, Sparkles, Sun, Moon } from 'lucide-react-native';
 import { Colors } from '../theme/colors';
-import { formatPaisa, paisaToRupees, rupeesToPaisa } from '../utils/currency';
+import { formatPaisa } from '../utils/currency';
+import { formatPktDate } from '../utils/date';
 import { StatCallout } from '../components/common/StatCallout';
 import { LedgerRow } from '../components/expense/LedgerRow';
 import { QuickExpenseForm } from '../components/expense/QuickExpenseForm';
 import { MonthEndModal } from '../components/expense/MonthEndModal';
+import { EditCycleModal } from '../components/expense/EditCycleModal';
 import { ConfirmModal } from '../components/common/ConfirmModal';
 import { SharedExpenseModal } from '../components/shared/SharedExpenseModal';
+import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { AuthModal, MobileAuthMode } from '../components/auth/AuthModal';
 
 interface LandingScreenProps {
   onOpenCycles: () => void;
 }
 
 export const LandingScreen: FC<LandingScreenProps> = ({ onOpenCycles }) => {
+  const { colors, isDark, toggleTheme } = useTheme();
+  const { user, isGuest } = useAuth();
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<MobileAuthMode>('login');
+
   const [isShared, setIsShared] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<SharedExpense | null>(null);
   const [isSharedModalOpen, setIsSharedModalOpen] = useState(false);
@@ -72,9 +79,6 @@ export const LandingScreen: FC<LandingScreenProps> = ({ onOpenCycles }) => {
 
   const [isMonthEndOpen, setIsMonthEndOpen] = useState(false);
   const [isEditCycleOpen, setIsEditCycleOpen] = useState(false);
-  const [editLabel, setEditLabel] = useState('');
-  const [editBudgetPkr, setEditBudgetPkr] = useState('');
-  const [editSubmitting, setEditSubmitting] = useState(false);
   const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -130,40 +134,23 @@ export const LandingScreen: FC<LandingScreenProps> = ({ onOpenCycles }) => {
     return res;
   };
 
-  const handleOpenEditCycle = () => {
-    if (!activeMonth) return;
-    setEditLabel(activeMonth.label || '');
-    setEditBudgetPkr(String(paisaToRupees(activeMonth.budget)));
-    setIsEditCycleOpen(true);
-  };
-
-  const handleSaveEditCycle = async () => {
-    if (!activeMonth) return;
-    const pkrNum = parseFloat(editBudgetPkr);
-    if (isNaN(pkrNum) || pkrNum < 0) return;
-    try {
-      setEditSubmitting(true);
-      await updateMonth({
-        id: activeMonth.id,
-        data: {
-          label: editLabel.trim() || activeMonth.label,
-          budget: rupeesToPaisa(pkrNum),
-        },
-      }).unwrap();
-      await refetchMonths();
-      setIsEditCycleOpen(false);
-    } catch (err) {
-      console.error('Failed to update cycle:', err);
-    } finally {
-      setEditSubmitting(false);
-    }
+  const handleSaveCycle = async (data: { id?: string; label: string; budget: number }) => {
+    if (!data.id) return;
+    await updateMonth({
+      id: data.id,
+      data: {
+        label: data.label,
+        budget: data.budget,
+      },
+    }).unwrap();
+    await Promise.all([refetchMonths(), refetchDetail()]);
   };
 
   if (monthsLoading || (activeMonth && detailLoading && !monthDetail)) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={Colors.light.primary} />
-        <Text style={styles.loadingText}>Loading ledger...</Text>
+      <View style={[styles.centerContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading ledger...</Text>
       </View>
     );
   }
@@ -176,51 +163,78 @@ export const LandingScreen: FC<LandingScreenProps> = ({ onOpenCycles }) => {
   const isOverBudget = remaining < 0;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Top Bar */}
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <View style={styles.topBarLeft}>
           <TouchableOpacity onPress={onOpenCycles} activeOpacity={0.7}>
-            <Text style={styles.monthLabel}>
+            <Text style={[styles.monthLabel, { color: colors.textPrimary }]}>
               {activeMonth?.label || (isShared ? 'Shared' : 'Active Cycle')}
             </Text>
           </TouchableOpacity>
 
-          {!isShared && activeMonth && (
+          {activeMonth && (
             <TouchableOpacity
-              onPress={handleOpenEditCycle}
-              style={styles.editCycleBtn}
+              onPress={() => setIsEditCycleOpen(true)}
+              style={[styles.editCycleBtn, { backgroundColor: colors.primarySoft }]}
               activeOpacity={0.7}
               accessibilityLabel="Edit cycle and budget"
             >
-              <Pencil size={11} color={Colors.light.primary} />
+              <Pencil size={12} color={colors.primary} />
             </TouchableOpacity>
           )}
 
           <TouchableOpacity
-            style={[styles.personalBadge, isShared && styles.sharedBadge]}
+            style={[styles.personalBadge, { backgroundColor: colors.primarySoft }, isShared && styles.sharedBadge]}
             onPress={handleToggleMode}
             activeOpacity={0.7}
           >
             {isShared ? (
-              <Users size={12} color={Colors.light.primary} />
+              <Users size={12} color={colors.primary} />
             ) : (
-              <ShieldCheck size={12} color={Colors.light.primary} />
+              <ShieldCheck size={12} color={colors.primary} />
             )}
-            <Text style={styles.badgeText}>
+            <Text style={[styles.badgeText, { color: colors.primary }]}>
               {isShared ? (selectedGroup?.name || 'Shared') : 'Personal'}
             </Text>
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          style={styles.endCycleButton}
-          onPress={() => setIsMonthEndOpen(true)}
-          activeOpacity={0.7}
-        >
-          <CalendarCheck size={15} color="#FFFFFF" />
-          <Text style={styles.endCycleText}>End Cycle</Text>
-        </TouchableOpacity>
+        <View style={styles.topBarRight}>
+          <TouchableOpacity
+            style={[styles.themeToggleBtn, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}
+            onPress={toggleTheme}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={isDark ? "Switch to light theme" : "Switch to dark theme"}
+          >
+            {isDark ? <Sun size={15} color={colors.primary} /> : <Moon size={15} color={colors.primary} />}
+          </TouchableOpacity>
+
+          {isGuest && (
+            <TouchableOpacity
+              style={[styles.loginPillBtn, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}
+              onPress={() => {
+                setAuthModalMode('login');
+                setIsAuthModalOpen(true);
+              }}
+              activeOpacity={0.7}
+              accessibilityLabel="Sign in with existing account"
+            >
+              <LogIn size={12} color={colors.primary} />
+              <Text style={[styles.loginPillText, { color: colors.primary }]}>Log In</Text>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity
+            style={[styles.endCycleButton, { backgroundColor: colors.primary }]}
+            onPress={() => setIsMonthEndOpen(true)}
+            activeOpacity={0.7}
+          >
+            <CalendarCheck size={15} color="#FFFFFF" />
+            <Text style={styles.endCycleText}>End Cycle</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -230,18 +244,87 @@ export const LandingScreen: FC<LandingScreenProps> = ({ onOpenCycles }) => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[Colors.light.primary]}
+            colors={[colors.primary]}
           />
         }
       >
-        {/* Stat Callouts Row (Spec B.8) */}
+        {/* Guest Warning & Upgrade Banner */}
+        {isGuest && (
+          <TouchableOpacity
+            style={[
+              styles.guestBanner,
+              isDark && { backgroundColor: '#2A2312', borderColor: '#5C4A1A' },
+            ]}
+            onPress={() => {
+              setAuthModalMode('upgrade');
+              setIsAuthModalOpen(true);
+            }}
+            activeOpacity={0.8}
+          >
+            <View style={styles.guestBannerContent}>
+              <Sparkles size={14} color="#E0AC55" />
+              <Text
+                style={[
+                  styles.guestBannerText,
+                  isDark && { color: '#F3E1B9' },
+                ]}
+                numberOfLines={1}
+              >
+                Guest Session • Save data to prevent loss
+              </Text>
+            </View>
+            <Text style={[styles.guestBannerCta, { color: colors.primary }]}>Save Data →</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Active Cycle Header Card */}
+        {activeMonth && (
+          <TouchableOpacity
+            style={[styles.cycleCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => setIsEditCycleOpen(true)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Edit cycle name and budget"
+          >
+            <View style={styles.cycleCardLeft}>
+              <View style={[styles.cycleIconCircle, { backgroundColor: colors.primarySoft }]}>
+                <Calendar size={18} color={colors.primary} />
+              </View>
+              <View style={styles.cycleInfo}>
+                <View style={styles.cycleTitleRow}>
+                  <Text style={[styles.cycleTitle, { color: colors.textPrimary }]} numberOfLines={1}>
+                    {monthDetail?.label || activeMonth.label}
+                  </Text>
+                  <View style={[styles.cycleInlineEdit, { backgroundColor: colors.primarySoft }]}>
+                    <Pencil size={11} color={colors.primary} />
+                  </View>
+                </View>
+                <Text style={[styles.cycleSubtitle, { color: colors.textSecondary }]}>
+                  Started {formatPktDate(activeMonth.startAt)} • Active Cycle
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.editBudgetButton, { backgroundColor: colors.primarySoft, borderColor: colors.primary + '35' }]}
+              onPress={() => setIsEditCycleOpen(true)}
+              activeOpacity={0.7}
+              accessibilityLabel="Edit cycle and budget"
+            >
+              <Pencil size={12} color={colors.primary} />
+              <Text style={[styles.editBudgetText, { color: colors.primary }]}>Edit Budget</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        )}
+
+        {/* Stat Callouts Row */}
         <View style={styles.statsRow}>
           <StatCallout
             label="Total Budget"
             value={formatPaisa(budget)}
-            subtext={!isShared && activeMonth ? "Target allowance (tap to edit)" : "Target allowance"}
+            subtext="Target allowance"
             variant="primary"
-            onPress={!isShared && activeMonth ? handleOpenEditCycle : undefined}
+            onPress={activeMonth ? () => setIsEditCycleOpen(true) : undefined}
           />
           <StatCallout
             label="Spent So Far"
@@ -267,13 +350,13 @@ export const LandingScreen: FC<LandingScreenProps> = ({ onOpenCycles }) => {
         {/* Ledger Transactions Section */}
         <View style={styles.ledgerSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Transactions</Text>
-            <Text style={styles.transactionCount}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Transactions</Text>
+            <Text style={[styles.transactionCount, { color: colors.textSecondary }]}>
               {monthDetail?.expenses?.length || 0} entries
             </Text>
           </View>
 
-          <View style={styles.ledgerCard}>
+          <View style={[styles.ledgerCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             {monthDetail?.expenses && monthDetail.expenses.length > 0 ? (
               monthDetail.expenses.map((expense) => (
                 <LedgerRow
@@ -284,8 +367,8 @@ export const LandingScreen: FC<LandingScreenProps> = ({ onOpenCycles }) => {
               ))
             ) : (
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyTitle}>No expenses recorded yet</Text>
-                <Text style={styles.emptySubtitle}>
+                <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No expenses recorded yet</Text>
+                <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
                   Use the quick entry above to record your first transaction.
                 </Text>
               </View>
@@ -295,97 +378,20 @@ export const LandingScreen: FC<LandingScreenProps> = ({ onOpenCycles }) => {
       </ScrollView>
 
       {/* Edit Cycle & Budget Modal */}
-      <Modal
-        transparent
-        visible={isEditCycleOpen}
-        animationType="fade"
-        onRequestClose={() => setIsEditCycleOpen(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setIsEditCycleOpen(false)}>
-          <View style={styles.editModalBackdrop}>
-            <TouchableWithoutFeedback>
-              <View style={styles.editModalCard}>
-                {/* Header */}
-                <View style={styles.editModalHeader}>
-                  <View style={styles.editModalTitleRow}>
-                    <View style={styles.editModalIcon}>
-                      <Pencil size={16} color={Colors.light.primary} />
-                    </View>
-                    <View>
-                      <Text style={styles.editModalTitle}>Edit Cycle & Budget</Text>
-                      <Text style={styles.editModalSubtitle}>
-                        Rename your cycle or adjust the budget.
-                      </Text>
-                    </View>
-                  </View>
-                  <TouchableOpacity onPress={() => setIsEditCycleOpen(false)}>
-                    <X size={20} color={Colors.light.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-
-                {/* Cycle Name */}
-                <View style={styles.editInputGroup}>
-                  <Text style={styles.editInputLabel}>Cycle Label / Name</Text>
-                  <TextInput
-                    style={styles.editInput}
-                    value={editLabel}
-                    onChangeText={setEditLabel}
-                    placeholder="e.g. October 2026, Week 3"
-                    placeholderTextColor={Colors.light.textSecondary}
-                  />
-                </View>
-
-                {/* Budget */}
-                <View style={styles.editInputGroup}>
-                  <Text style={styles.editInputLabel}>Budget Allowance (PKR)</Text>
-                  <TextInput
-                    style={styles.editInput}
-                    value={editBudgetPkr}
-                    onChangeText={setEditBudgetPkr}
-                    keyboardType="numeric"
-                    placeholder="e.g. 100000"
-                    placeholderTextColor={Colors.light.textSecondary}
-                  />
-                </View>
-
-                {/* Presets */}
-                <View style={styles.presetsRow}>
-                  {[5000, 25000, 50000, 100000].map((amt) => (
-                    <TouchableOpacity
-                      key={amt}
-                      style={styles.presetBtn}
-                      onPress={() => setEditBudgetPkr(String(amt))}
-                    >
-                      <Text style={styles.presetBtnText}>Rs {(amt / 1000).toFixed(0)}k</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                {/* Actions */}
-                <View style={styles.editActions}>
-                  <TouchableOpacity
-                    style={[styles.editBtn, styles.editCancelBtn]}
-                    onPress={() => setIsEditCycleOpen(false)}
-                    disabled={editSubmitting}
-                  >
-                    <Text style={styles.editCancelText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.editBtn, styles.editSaveBtn, editSubmitting && styles.disabledBtn]}
-                    onPress={handleSaveEditCycle}
-                    disabled={editSubmitting}
-                  >
-                    <DollarSign size={14} color="#FFFFFF" />
-                    <Text style={styles.editSaveText}>
-                      {editSubmitting ? 'Saving...' : 'Save Changes'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+      <EditCycleModal
+        isOpen={isEditCycleOpen}
+        cycle={
+          activeMonth
+            ? {
+                id: activeMonth.id,
+                label: monthDetail?.label || activeMonth.label,
+                budget: monthDetail?.budget ?? activeMonth.budget,
+              }
+            : null
+        }
+        onClose={() => setIsEditCycleOpen(false)}
+        onSave={handleSaveCycle}
+      />
 
       {/* Month-End Rollover Modal */}
       <MonthEndModal
@@ -421,6 +427,14 @@ export const LandingScreen: FC<LandingScreenProps> = ({ onOpenCycles }) => {
         onConfirm={handleDeleteConfirm}
         onCancel={() => setExpenseToDelete(null)}
       />
+
+      {/* Authentication Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        initialMode={authModalMode}
+        canDismiss={Boolean(user)}
+      />
     </View>
   );
 };
@@ -428,17 +442,14 @@ export const LandingScreen: FC<LandingScreenProps> = ({ onOpenCycles }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
   },
   centerContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.light.background,
   },
   loadingText: {
     fontSize: 14,
-    color: Colors.light.textSecondary,
     marginTop: 10,
   },
   topBar: {
@@ -446,26 +457,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: Colors.light.surface,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
   },
   topBarLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
+    flex: 1,
   },
   monthLabel: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.light.textPrimary,
   },
   editCycleBtn: {
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: Colors.light.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -475,24 +483,29 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    backgroundColor: Colors.light.primarySoft,
     borderRadius: 12,
   },
   sharedBadge: {
-    backgroundColor: 'rgba(11, 79, 74, 0.15)',
+    opacity: 0.9,
   },
   badgeText: {
     fontSize: 11,
     fontWeight: '600',
-    color: Colors.light.primary,
+  },
+  themeToggleBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   endCycleButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: Colors.light.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 8,
   },
   endCycleText: {
@@ -521,19 +534,15 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.light.textPrimary,
   },
   transactionCount: {
     fontSize: 12,
-    color: Colors.light.textSecondary,
   },
   ledgerCard: {
-    backgroundColor: Colors.light.surface,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: Colors.light.border,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -542,127 +551,122 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.light.textPrimary,
     marginBottom: 4,
   },
   emptySubtitle: {
     fontSize: 12,
-    color: Colors.light.textSecondary,
     textAlign: 'center',
     maxWidth: 240,
   },
-  // Edit Cycle Modal
-  editModalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(20, 19, 17, 0.45)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  editModalCard: {
-    width: '100%',
-    maxWidth: 360,
-    backgroundColor: Colors.light.surface,
+  // Active Cycle Header Card
+  cycleCard: {
     borderRadius: 16,
-    padding: 20,
-    gap: 14,
-  },
-  editModalHeader: {
+    padding: 14,
+    borderWidth: 1,
+    marginBottom: 14,
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+    gap: 10,
   },
-  editModalTitleRow: {
+  cycleCardLeft: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
     flex: 1,
   },
-  editModalIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: Colors.light.primarySoft,
+  cycleIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  editModalTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.light.textPrimary,
-  },
-  editModalSubtitle: {
-    fontSize: 11,
-    color: Colors.light.textSecondary,
-    marginTop: 2,
-  },
-  editInputGroup: {
-    gap: 5,
-  },
-  editInputLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.light.textPrimary,
-  },
-  editInput: {
-    height: 44,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    backgroundColor: Colors.light.surfaceRaised,
-    fontSize: 14,
-    color: Colors.light.textPrimary,
-  },
-  presetsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  presetBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: Colors.light.surfaceRaised,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-  },
-  presetBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.light.textSecondary,
-  },
-  editActions: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 4,
-  },
-  editBtn: {
+  cycleInfo: {
     flex: 1,
-    height: 44,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+  },
+  cycleTitleRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
   },
-  editCancelBtn: {
+  cycleTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+  },
+  cycleInlineEdit: {
+    padding: 3,
+    borderRadius: 6,
+  },
+  cycleSubtitle: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  editBudgetButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.light.border,
+    flexShrink: 0,
   },
-  editCancelText: {
-    fontSize: 14,
+  editBudgetText: {
+    fontSize: 11.5,
     fontWeight: '600',
-    color: Colors.light.textPrimary,
   },
-  editSaveBtn: {
-    backgroundColor: Colors.light.primary,
+  topBarRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
-  editSaveText: {
-    fontSize: 14,
+  loginPillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  loginPillText: {
+    fontSize: 12,
     fontWeight: '600',
-    color: '#FFFFFF',
   },
-  disabledBtn: {
-    opacity: 0.6,
+  guestBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFF9E6',
+    borderWidth: 1,
+    borderColor: '#F5DE9C',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginBottom: 14,
+  },
+  guestBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  guestBannerText: {
+    fontSize: 11.5,
+    color: '#7D5A12',
+    fontWeight: '500',
+    flex: 1,
+  },
+  guestBannerCta: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    marginLeft: 8,
   },
 });
