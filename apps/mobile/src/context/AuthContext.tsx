@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode, FC } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, ReactNode, FC } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDispatch } from 'react-redux';
 import {
@@ -130,15 +130,29 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     await persistSession(res.user, res.tokens.accessToken, res.tokens.refreshToken);
   };
 
+  const isLoggingOutRef = useRef(false);
   const logout = async () => {
+    if (isLoggingOutRef.current) return;
+    isLoggingOutRef.current = true;
+    const hadAuth = Boolean(currentToken || user || currentRefreshToken);
     try {
-      const refreshToken = currentRefreshToken || undefined;
-      await logoutMutation({ refreshToken }).unwrap();
-    } catch (err) {
-      console.warn('Backend logout call failed or network issue:', err);
+      if (hadAuth) {
+        const refreshToken = currentRefreshToken || undefined;
+        if (refreshToken) {
+          try {
+            await logoutMutation({ refreshToken }).unwrap();
+          } catch (err) {
+            console.warn('Backend logout call failed or network issue:', err);
+          }
+        }
+      }
+    } finally {
+      if (hadAuth) {
+        dispatch(apiSlice.util.resetApiState());
+      }
+      await clearSession();
+      isLoggingOutRef.current = false;
     }
-    dispatch(apiSlice.util.resetApiState());
-    await clearSession();
   };
 
   // Listen to silent background token rotations and 401 expiration events from apiSlice
@@ -156,14 +170,16 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     });
 
     setOnAuthFailed(() => {
-      logout();
+      if (currentToken || user || currentRefreshToken) {
+        logout();
+      }
     });
 
     return () => {
       setOnTokenRefreshed(null);
       setOnAuthFailed(null);
     };
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     const initAuth = async () => {

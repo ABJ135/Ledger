@@ -1,4 +1,10 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import {
+  createApi,
+  fetchBaseQuery,
+  type BaseQueryFn,
+  type FetchArgs,
+  type FetchBaseQueryError,
+} from '@reduxjs/toolkit/query/react';
 import type {
   AuthResponse,
   GuestAuthDto,
@@ -89,7 +95,27 @@ export const setApiBaseUrl = (url: string) => {
 
 export const getApiBaseUrl = () => currentBaseUrl;
 
-let refreshPromise: Promise<string | null> | null = null;
+// A separate, un-intercepted client for the refresh call itself,
+// so a failed refresh can never trigger another refresh attempt.
+const createRefreshClient = () =>
+  fetchBaseQuery({
+    baseUrl: currentBaseUrl,
+    credentials: 'include',
+  });
+
+let isRefreshing = false;
+let pendingQueue: Array<{
+  resolve: (token: string) => void;
+  reject: (err: unknown) => void;
+}> = [];
+
+function flushQueue(error: unknown, token: string | null) {
+  for (const { resolve, reject } of pendingQueue) {
+    if (token) resolve(token);
+    else reject(error);
+  }
+  pendingQueue = [];
+}
 
 const createRawBaseQuery = () =>
   fetchBaseQuery({
@@ -104,84 +130,113 @@ const createRawBaseQuery = () =>
     },
   });
 
-const dynamicBaseQuery = async (args: any, apiInstance: any, extraOptions: any) => {
+const dynamicBaseQuery: BaseQueryFn<
+  string | FetchArgs,
+  unknown,
+  FetchBaseQueryError,
+  { _retry?: boolean }
+> = async (args, apiInstance, extraOptions = {}) => {
   const rawBaseQuery = createRawBaseQuery();
   let result = await rawBaseQuery(args, apiInstance, extraOptions);
 
-  // If request failed with 401 Unauthorized, attempt to refresh token and retry
-  if (result.error && result.error.status === 401) {
-    const requestUrl = typeof args === 'string' ? args : args?.url || '';
-    const isAuthUrl =
-      requestUrl.includes('/auth/login') ||
-      requestUrl.includes('/auth/signup') ||
-      requestUrl.includes('/auth/guest') ||
-      requestUrl.includes('/auth/refresh') ||
-      requestUrl.includes('/auth/logout');
+  const status = result.error?.status;
+  const requestUrl = typeof args === 'string' ? args : args?.url || '';
+  const isAuthEndpoint =
+    requestUrl.includes('/auth/login') ||
+    requestUrl.includes('/auth/signup') ||
+    requestUrl.includes('/auth/guest') ||
+    requestUrl.includes('/auth/refresh') ||
+    requestUrl.includes('/auth/logout');
 
-    if (!isAuthUrl) {
-      if (!refreshPromise) {
-        refreshPromise = (async (): Promise<string | null> => {
-          try {
-            const refreshToken = currentRefreshToken || getRefreshToken();
-            // Call POST /auth/refresh with token in body and cookie credentials
-            const refreshResult = await rawBaseQuery(
-              {
-                url: '/auth/refresh',
-                method: 'POST',
-                body: refreshToken ? { refreshToken } : {},
-              },
-              apiInstance,
-              extraOptions
-            );
+  if (status !== 401 || extraOptions?._retry || isAuthEndpoint) {
+    return result;
+  }
 
-            if (refreshResult.data) {
-              const authResponse = refreshResult.data as AuthResponse;
-              const newAccess = authResponse.tokens.accessToken;
-              const newRefresh = authResponse.tokens.refreshToken;
+  const refreshToken = currentRefreshToken || getRefreshToken();
+  if (!refreshToken || typeof refreshToken !== 'string' || !refreshToken.trim()) {
+    currentDirectToken = null;
+    currentRefreshToken = null;
+    if (onAuthFailedCallback) {
+      onAuthFailedCallback();
+    }
+    return result;
+  }
 
-              currentDirectToken = newAccess;
-              currentRefreshToken = newRefresh;
+  if (isRefreshing) {
+    // Another request already triggered a refresh — wait for it.
+    return new Promise<any>((resolve) => {
+      pendingQueue.push({
+        resolve: async () => {
+          const retriedResult = await rawBaseQuery(args, apiInstance, {
+            ...(extraOptions || {}),
+            _retry: true,
+          });
+          resolve(retriedResult);
+        },
+        reject: () => {
+          resolve(result);
+        },
+      });
+    });
+  }
 
-              if (onTokenRefreshedCallback) {
-                onTokenRefreshedCallback({
-                  accessToken: newAccess,
-                  refreshToken: newRefresh,
-                  user: authResponse.user,
-                });
-              }
+  isRefreshing = true;
 
-              return newAccess;
-            } else {
-              // Refresh failed - token expired or invalid
-              currentDirectToken = null;
-              currentRefreshToken = null;
-              if (onAuthFailedCallback) {
-                onAuthFailedCallback();
-              }
-              return null;
-            }
-          } catch {
-            currentDirectToken = null;
-            currentRefreshToken = null;
-            if (onAuthFailedCallback) {
-              onAuthFailedCallback();
-            }
-            return null;
-          }
-        })().finally(() => {
-          refreshPromise = null;
+  try {
+    const refreshClient = createRefreshClient();
+    const refreshResult = await refreshClient(
+      {
+        url: '/auth/refresh',
+        method: 'POST',
+        body: { refreshToken: refreshToken.trim() },
+      },
+      apiInstance,
+      extraOptions
+    );
+
+    if (refreshResult.data) {
+      const authResponse = refreshResult.data as AuthResponse;
+      const newAccess = authResponse.tokens.accessToken;
+      const newRefresh = authResponse.tokens.refreshToken;
+
+      currentDirectToken = newAccess;
+      currentRefreshToken = newRefresh;
+
+      if (onTokenRefreshedCallback) {
+        onTokenRefreshedCallback({
+          accessToken: newAccess,
+          refreshToken: newRefresh,
+          user: authResponse.user,
         });
       }
 
-      const freshToken = await refreshPromise;
-      if (freshToken) {
-        // Retry the original query with the newly acquired access token!
-        result = await rawBaseQuery(args, apiInstance, extraOptions);
-      }
-    }
-  }
+      flushQueue(null, newAccess);
 
-  return result;
+      // Retry original request with the updated token and _retry flag
+      return await rawBaseQuery(args, apiInstance, {
+        ...(extraOptions || {}),
+        _retry: true,
+      });
+    } else {
+      flushQueue(refreshResult.error, null);
+      currentDirectToken = null;
+      currentRefreshToken = null;
+      if (onAuthFailedCallback) {
+        onAuthFailedCallback();
+      }
+      return result;
+    }
+  } catch (refreshError) {
+    flushQueue(refreshError, null);
+    currentDirectToken = null;
+    currentRefreshToken = null;
+    if (onAuthFailedCallback) {
+      onAuthFailedCallback();
+    }
+    return result;
+  } finally {
+    isRefreshing = false;
+  }
 };
 
 export const api = createApi({
@@ -326,12 +381,13 @@ export const api = createApi({
     }),
 
     // Months
-    getMonths: builder.query<Month[], { context?: 'personal' | 'shared'; sharedExpenseId?: string }>({
-      query: ({ context, sharedExpenseId }) => {
+    getMonths: builder.query<Month[], { context?: 'personal' | 'shared'; sharedExpenseId?: string } | void | undefined>({
+      query: (args) => {
         const params = new URLSearchParams();
-        if (context) params.append('context', context);
-        if (sharedExpenseId) params.append('sharedExpenseId', sharedExpenseId);
-        return `/months?${params.toString()}`;
+        if (args && args.context) params.append('context', args.context);
+        if (args && args.sharedExpenseId) params.append('sharedExpenseId', args.sharedExpenseId);
+        const qs = params.toString();
+        return qs ? `/months?${qs}` : '/months';
       },
       providesTags: (result) =>
         result
@@ -422,7 +478,7 @@ export const api = createApi({
     }),
 
     // Categories
-    getCategories: builder.query<Category[], void>({
+    getCategories: builder.query<Category[], void | undefined>({
       query: () => '/categories',
       providesTags: ['Category'],
     }),
@@ -436,7 +492,7 @@ export const api = createApi({
     }),
 
     // Todos
-    getTodos: builder.query<Todo[], void>({
+    getTodos: builder.query<Todo[], void | undefined>({
       query: () => '/todos',
       providesTags: (result) =>
         result
@@ -505,7 +561,7 @@ export const api = createApi({
       }),
       invalidatesTags: ['SharedExpense'],
     }),
-    getMySharedExpenses: builder.query<SharedExpense[], void>({
+    getMySharedExpenses: builder.query<SharedExpense[], void | undefined>({
       query: () => '/shared-expenses/mine',
       providesTags: ['SharedExpense'],
     }),

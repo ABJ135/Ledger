@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode, FC } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, ReactNode, FC } from 'react';
 import { useDispatch } from 'react-redux';
 import {
   setAuthTokenGetter,
@@ -105,24 +105,38 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     }
   };
 
+  const isLoggingOutRef = useRef(false);
   const logout = async () => {
+    if (isLoggingOutRef.current) return;
+    isLoggingOutRef.current = true;
+    const hadAuth = Boolean(currentToken || user || currentRefreshToken);
     try {
-      const refreshToken = currentRefreshToken || localStorage.getItem('ledger_refresh_token') || undefined;
-      await logoutMutation({ refreshToken }).unwrap();
-    } catch {
-      // Continue clearing local state even if network logout fails
+      if (hadAuth) {
+        const refreshToken = currentRefreshToken || localStorage.getItem('ledger_refresh_token') || undefined;
+        if (refreshToken) {
+          try {
+            await logoutMutation({ refreshToken }).unwrap();
+          } catch {
+            // Continue clearing local state even if network logout fails
+          }
+        }
+      }
+    } finally {
+      setDirectToken(null);
+      setDirectRefreshToken(null);
+      currentToken = null;
+      currentRefreshToken = null;
+      setToken(null);
+      setUser(null);
+      localStorage.setItem('ledger_logged_out', 'true');
+      localStorage.removeItem('ledger_access_token');
+      localStorage.removeItem('ledger_refresh_token');
+      localStorage.removeItem('ledger_user');
+      if (hadAuth) {
+        dispatch(api.util.resetApiState());
+      }
+      isLoggingOutRef.current = false;
     }
-    setDirectToken(null);
-    setDirectRefreshToken(null);
-    currentToken = null;
-    currentRefreshToken = null;
-    setToken(null);
-    setUser(null);
-    localStorage.setItem('ledger_logged_out', 'true');
-    localStorage.removeItem('ledger_access_token');
-    localStorage.removeItem('ledger_refresh_token');
-    localStorage.removeItem('ledger_user');
-    dispatch(api.util.resetApiState());
   };
 
   // Listen to silent background token rotations and 401 expiration events from apiSlice
@@ -140,14 +154,16 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     });
 
     setOnAuthFailed(() => {
-      logout();
+      if (currentToken || user || currentRefreshToken) {
+        logout();
+      }
     });
 
     return () => {
       setOnTokenRefreshed(null);
       setOnAuthFailed(null);
     };
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     const initAuth = async () => {

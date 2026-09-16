@@ -22,7 +22,7 @@ import {
 import { MonthSummary, SharedExpense } from '@repo/shared-types';
 
 export function App() {
-  const { user, logout, isLoading: authLoading } = useAuth();
+  const { user, token, logout, isLoading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<NavTab>('landing');
   const [isShared, setIsShared] = useState(false);
   const [selectedSharedGroup, setSelectedSharedGroup] = useState<SharedExpense | null>(null);
@@ -42,8 +42,12 @@ export function App() {
     setIsAuthModalOpen(true);
   };
 
+  const skipQueries = !user || !token || authLoading;
+
   // Query user's shared expenses
-  const { data: mySharedGroups = [] } = useGetMySharedExpensesQuery();
+  const { data: mySharedGroups = [] } = useGetMySharedExpensesQuery(undefined, {
+    skip: skipQueries,
+  });
 
   // Handle switching to shared mode
   const handleToggleShared = (shared: boolean) => {
@@ -59,13 +63,20 @@ export function App() {
 
   const activeSharedId = isShared ? selectedSharedGroup?.id : undefined;
 
-  const { data: months } = useGetMonthsQuery({
-    context: isShared ? 'shared' : 'personal',
-    sharedExpenseId: activeSharedId,
-  });
+  const { data: months } = useGetMonthsQuery(
+    {
+      context: isShared ? 'shared' : 'personal',
+      sharedExpenseId: activeSharedId,
+    },
+    {
+      skip: skipQueries,
+    },
+  );
   const currentMonth = months?.find((m) => m.isCurrent) || months?.[0] || null;
 
-  const { data: categories = [] } = useGetCategoriesQuery();
+  const { data: categories = [] } = useGetCategoriesQuery(undefined, {
+    skip: skipQueries,
+  });
   const [createExpense] = useCreateExpenseMutation();
   const [endCurrentMonthMutation] = useEndCurrentMonthMutation();
 
@@ -162,33 +173,61 @@ export function App() {
 
         {/* Main Content Area: Max-width 1240px with bottom padding for mobile bar */}
         <main className="flex-1 p-4 sm:p-7 max-w-[1240px] mx-auto w-full pb-24 md:pb-8">
-          {activeTab === 'landing' && (
-            <LandingPage
-              context={isShared ? 'shared' : 'personal'}
-              sharedExpenseId={activeSharedId}
-            />
-          )}
-          {activeTab === 'months' && (
-            <MonthViewPage
-              context={isShared ? 'shared' : 'personal'}
-              sharedExpenseId={activeSharedId}
-            />
-          )}
-          {activeTab === 'excel' && (
-            <ExcelEditPage
-              context={isShared ? 'shared' : 'personal'}
-              sharedExpenseId={activeSharedId}
-              onBack={() => setActiveTab('landing')}
-            />
-          )}
-          {activeTab === 'todo' && <TodoPage />}
-          {activeTab === 'settings' && (
-            <SettingsPage
-              isDark={isDark}
-              onToggleTheme={toggleTheme}
-              onOpenSharedModal={() => setIsSharedModalOpen(true)}
-              onOpenAuth={handleOpenAuth}
-            />
+          {!user ? (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
+              <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center font-display font-bold text-2xl mb-4 shadow-sm border border-primary/20">
+                L
+              </div>
+              <h2 className="text-2xl font-bold text-text-primary mb-2 font-display">Welcome to Ledger</h2>
+              <p className="text-sm text-text-secondary max-w-sm mb-6">
+                Sign in to your account, create a new one, or continue with a session to track your expenses and budgets.
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => handleOpenAuth('login')}
+                  className="px-5 py-2.5 bg-primary text-white rounded-xl font-medium text-sm hover:bg-primary-hover transition-colors shadow-sm"
+                >
+                  Sign In
+                </button>
+                <button
+                  onClick={() => handleOpenAuth('signup')}
+                  className="px-5 py-2.5 bg-card border border-border text-text-primary rounded-xl font-medium text-sm hover:bg-hover transition-colors shadow-sm"
+                >
+                  Create Account
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {activeTab === 'landing' && (
+                <LandingPage
+                  context={isShared ? 'shared' : 'personal'}
+                  sharedExpenseId={activeSharedId}
+                />
+              )}
+              {activeTab === 'months' && (
+                <MonthViewPage
+                  context={isShared ? 'shared' : 'personal'}
+                  sharedExpenseId={activeSharedId}
+                />
+              )}
+              {activeTab === 'excel' && (
+                <ExcelEditPage
+                  context={isShared ? 'shared' : 'personal'}
+                  sharedExpenseId={activeSharedId}
+                  onBack={() => setActiveTab('landing')}
+                />
+              )}
+              {activeTab === 'todo' && <TodoPage />}
+              {activeTab === 'settings' && (
+                <SettingsPage
+                  isDark={isDark}
+                  onToggleTheme={toggleTheme}
+                  onOpenSharedModal={() => setIsSharedModalOpen(true)}
+                  onOpenAuth={handleOpenAuth}
+                />
+              )}
+            </>
           )}
         </main>
       </div>
