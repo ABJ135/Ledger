@@ -24,6 +24,7 @@ export function initMobileApi() {
       .replace('127.0.0.1', devHostIp);
   }
 
+  configuredUrl = configuredUrl.trim().replace(/\/+$/, '');
   setApiBaseUrl(configuredUrl);
   console.log(`[Mobile API] Connected to backend API at: ${configuredUrl}`);
 }

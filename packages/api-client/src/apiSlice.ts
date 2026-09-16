@@ -37,13 +37,23 @@ let onTokenRefreshedCallback:
   | null = null;
 let onAuthFailedCallback: (() => void) | null = null;
 
-let currentBaseUrl: string =
-  (typeof process !== 'undefined' && (
-    process.env.VITE_API_BASE_URL ||
-    process.env.EXPO_PUBLIC_API_BASE_URL ||
-    process.env.EXPO_PUBLIC_API_URL
-  )) ||
-  'http://localhost:4000';
+const resolveInitialBaseUrl = (): string => {
+  if (typeof window !== 'undefined' && (window as any).__LEDGER_API_URL__) {
+    return String((window as any).__LEDGER_API_URL__).trim().replace(/\/+$/, '');
+  }
+  if (typeof process !== 'undefined' && process.env) {
+    const envUrl =
+      process.env.VITE_API_BASE_URL ||
+      process.env.EXPO_PUBLIC_API_BASE_URL ||
+      process.env.EXPO_PUBLIC_API_URL;
+    if (envUrl) {
+      return String(envUrl).trim().replace(/\/+$/, '');
+    }
+  }
+  return 'http://localhost:4000';
+};
+
+let currentBaseUrl: string = resolveInitialBaseUrl();
 
 export const setAuthTokenGetter = (getter: () => string | null) => {
   getAccessToken = getter;
@@ -72,7 +82,9 @@ export const setOnAuthFailed = (cb: (() => void) | null) => {
 };
 
 export const setApiBaseUrl = (url: string) => {
-  currentBaseUrl = url;
+  if (url && typeof url === 'string') {
+    currentBaseUrl = url.trim().replace(/\/+$/, '');
+  }
 };
 
 export const getApiBaseUrl = () => currentBaseUrl;

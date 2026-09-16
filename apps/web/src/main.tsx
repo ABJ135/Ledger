@@ -4,10 +4,17 @@ import { Provider } from 'react-redux';
 import { store } from './store';
 import { AuthProvider } from './context/AuthContext';
 import { initSentryWeb, Sentry } from './sentry';
+import { setApiBaseUrl } from '@repo/api-client';
 import App from './App';
 import './index.css';
 
 initSentryWeb();
+
+const envApiUrl = import.meta.env.VITE_API_BASE_URL || (typeof process !== 'undefined' ? process.env.VITE_API_BASE_URL : '');
+if (envApiUrl) {
+  setApiBaseUrl(envApiUrl);
+  console.log(`[Ledger Web] Initialized API Base URL: ${envApiUrl}`);
+}
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <StrictMode>
